@@ -1,5 +1,10 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
+import java.io.InputStream;
+import java.util.Scanner;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 // Importaciones necesarias para la aplicación Spark
 import com.fasterxml.jackson.databind.ObjectMapper; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
 import static spark.Spark.*; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
@@ -18,7 +23,9 @@ import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
 
 // Importaciones de clases del proyecto
 import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import com.is1.proyecto.models.Persona;
+import com.is1.proyecto.models.Profesor; 
+import com.is1.proyecto.models.User; // Modelo de Act iveJDBC que representa la tabla 'users'.
 
 
 /**
@@ -41,6 +48,29 @@ public class App {
         // Obtener la instancia única del singleton de configuración de la base de datos.
         DBConfigSingleton dbConfig = DBConfigSingleton.getInstance();
 
+        
+        try {
+            Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
+            // Leemos el archivo scheme.sql de los recursos
+            InputStream is = App.class.getResourceAsStream("/scheme.sql");
+            if (is != null) {
+                
+                Scanner s = new Scanner(is).useDelimiter("\\A");
+                String sql = s.hasNext() ? s.next() : "";
+                
+                
+                Base.exec(sql);
+                System.out.println(">>> BASE DE DATOS INICIALIZADA CON TABLAS <<<");
+            } else {
+                System.err.println(">>> ERROR: No se encontró scheme.sql <<<");
+            }
+        } catch (Exception e) {
+            System.err.println(">>> Error al inicializar la DB: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            Base.close(); // Cerramos para que Spark maneje sus propias conexiones después
+        }
+        
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
         before((req, res) -> {
@@ -292,6 +322,179 @@ public class App {
                 return objectMapper.writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
             }
         });
+
+        get("/profesor/login", (req, res) -> {
+            return new ModelAndView(new HashMap<>(), "professor_login.mustache"); // No pasa un modelo específico, solo el formulario.
+        }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+
+         // GET: Muestra el formulario de persona y captura mensajes de éxito/error
+        // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
+        get("/person/new", (req, res) -> {
+            Map<String, Object> model = new HashMap<>(); 
+
+            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+
+            // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos vacíos)
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            // Renderiza la plantilla 'professor_login.mustache' con los datos del modelo.
+            return new ModelAndView(model, "person_form.mustache");
+        }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+
+        // POST: Maneja el envío del formulario de inicio de sesión.
+        post("/profesor/login", (req, res) -> {
+            Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla de login.
+
+            String dni = req.queryParams("prof_dni");
+            String legajo = req.queryParams("nro_legajo");
+
+            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o vacíos.
+            if (dni == null || dni.isEmpty() || legajo == null || legajo.isEmpty()) { 
+                res.status(400); // Bad Request.
+                model.put("errorMessage", "Dni y legajo son necesarios.");
+                return new ModelAndView(model, "professor_login.mustache"); // Renderiza la plantilla de login con error.
+            }
+            
+            Integer pdni;
+            Integer plegajo;
+            // Bloque try para la conversión de números.
+            try {
+                pdni = Integer.valueOf(dni);
+                plegajo = Integer.valueOf(legajo);
+            } catch (NumberFormatException e) {
+                 res.status(400); // Bad Request.
+                 model.put("errorMessage", "El Dni y el Número de Legajo deben ser números válidos.");
+                 return new ModelAndView(model, "professor_login.mustache");
+            }
+        
+            
+            try {
+                // Busca el dni en la base de datos por el dni.
+                Persona dn = Persona.findFirst("dni = ?", dni);
+
+                //Si no se encuentra ninguna cuenta con ese dni.
+                if (dn == null) {
+                    res.status(401); // Unauthorized.
+                    model.put("errorMessage", "El dni: " + dni + " no esta cargado en el sistema. Por favor registra la persona"); 
+                    return new ModelAndView(model, "professor_login.mustache"); // Renderiza la plantilla de login con error.
+                }
+                
+                //Verificar si el profesor ya existe.
+                Profesor existingProfesor = Profesor.findFirst("dni = ?", dni);
+
+                if (existingProfesor != null) {
+                    // El DNI ya está asociado a un profesor, se asume que solo intenta loguear o confirmar.
+                    res.status(200); // OK.
+                    res.redirect("/profesor/login?message=El profesor (DNI: " + dni + ") ya estaba cargado. Se podría proceder con la asignación de materia.");
+                    return null; 
+                }
+                
+                //Si la persona existe y no es profesor, la registramos.
+                Profesor newProfesor = new Profesor();
+                newProfesor.setDni(pdni);
+                newProfesor.setLegajo(plegajo);
+                newProfesor.saveIt(); // Guarda el nuevo profesor en la tabla 'profesor'.
+
+                res.status(201); // Created.
+
+                // Redirigir al formulario de profesor con un mensaje de éxito
+                res.redirect("/profesor/login?message=Profesor (DNI: " + dni + ") cargado exitosamente. Puede continuar con la asignación de materia.");
+                return null; // Retorna null después de una redirección.
+
+            } catch (Exception e) {
+                //Capturar errores de DB (ej. nro_legajo duplicado, DBException, etc.)
+                System.err.println("Error al registrar profesor: " + e.getMessage());
+                e.printStackTrace(); 
+                res.status(500); // Internal Server Error.
+                
+                // Manejo de error de legajo duplicado.
+                if (e.getMessage().contains("nro_legajo")) {
+                    model.put("errorMessage", "El Número de Legajo (" + legajo + ") ya está en uso por otro profesor. Por favor, verifique.");
+                } else {
+                    model.put("errorMessage", "Error interno al registrar el profesor. Intente de nuevo.");
+                }
+                return new ModelAndView(model, "professor_login.mustache");
+            }
+        }, new MustacheTemplateEngine()); 
+
+        // POST: Maneja el envío del formulario de registro de nueva Persona.
+        post("/person/new", (req, res) -> {
+            String name = req.queryParams("name");
+            String apellido = req.queryParams("apellido");
+            String dni = req.queryParams("dni");
+            String correo = req.queryParams("correo");
+
+            
+            if (name == null || name.isEmpty() || apellido == null || apellido.isEmpty() 
+                || dni == null || dni.isEmpty() || correo == null || correo.isEmpty()) {
+                res.status(400); 
+                
+                String msg = URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8);
+                res.redirect("/person/new?error=" + msg);
+                return "";
+            }
+
+            Integer personaDni;
+            try {
+                personaDni = Integer.valueOf(dni);
+            } catch (NumberFormatException e) {
+                res.status(400);
+                
+                String msg = URLEncoder.encode("El DNI debe ser un número válido.", StandardCharsets.UTF_8);
+                res.redirect("/person/new?error=" + msg);
+                return "";
+            }
+
+            try {
+                
+                if (Persona.findFirst("dni = ?", dni) != null) {
+                    res.status(409);
+                    String msg = URLEncoder.encode("El DNI " + dni + " ya se encuentra registrado.", StandardCharsets.UTF_8);
+                    res.redirect("/person/new?error=" + msg);
+                    return "";
+                }
+                
+                
+                if (Persona.findFirst("correo = ?", correo) != null) {
+                    res.status(409);
+                    String msg = URLEncoder.encode("El correo electrónico ya se encuentra registrado.", StandardCharsets.UTF_8);
+                    res.redirect("/person/new?error=" + msg);
+                    return "";
+                }
+
+                
+                Persona newPersona = new Persona();
+                newPersona.set("nombre", name);
+                newPersona.set("apellido", apellido);
+                newPersona.setDni(personaDni);
+                newPersona.set("correo", correo); 
+                newPersona.saveIt(); 
+
+                res.status(201); 
+                
+                String mensajeExito = "Persona " + name + " " + apellido + " registrada con éxito.";
+                String msgEncoded = URLEncoder.encode(mensajeExito, StandardCharsets.UTF_8);
+                
+                res.redirect("/person/new?message=" + msgEncoded);
+                return ""; 
+
+            } catch (Exception e) {
+                System.err.println("Error al registrar la persona: " + e.getMessage());
+                e.printStackTrace(); 
+                res.status(500);
+                String msg = URLEncoder.encode("Error interno al crear la persona. Intente de nuevo.", StandardCharsets.UTF_8);
+                res.redirect("/person/new?error=" + msg);
+                return ""; 
+            }
+        });
+
 
     } // Fin del método main
 } // Fin de la clase App
