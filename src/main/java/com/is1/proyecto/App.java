@@ -26,6 +26,7 @@ import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la con
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor; 
 import com.is1.proyecto.models.User; // Modelo de Act iveJDBC que representa la tabla 'users'.
+import com.is1.proyecto.models.Carrera; // Modelo de Act iveJDBC que representa la tabla 'users'.
 
 
 /**
@@ -493,8 +494,51 @@ public class App {
                 res.redirect("/person/new?error=" + msg);
                 return ""; 
             }
-        });
+        }
+    );
 
+        get("/carrera/new", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            return new ModelAndView(model, "carrera_form.mustache");
+        }, new MustacheTemplateEngine());
+
+        // Procesar los datos del formulario
+        post("/carrera/create", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String codigo = req.queryParams("codigo");
+            String nombre = req.queryParams("nombre");
+
+            try {
+                // Validación básica
+                if (codigo == null || codigo.trim().isEmpty() || nombre == null || nombre.trim().isEmpty()) {
+                    model.put("error", "Todos los campos son obligatorios.");
+                    return new ModelAndView(model, "carrera_form.mustache");
+                }
+
+                // Guardar en la base de datos
+                Carrera carrera = new Carrera();
+                carrera.set("codigo", codigo);
+                carrera.set("nombre", nombre);
+                carrera.saveIt();
+
+                model.put("success", true);
+            } catch (Exception e) {
+                // ActiveJDBC lanzará excepción si se viola la restricción UNIQUE del código
+                model.put("error", "Error al guardar. Es posible que el código ya exista.");
+            }
+
+            return new ModelAndView(model, "carrera_form.mustache");
+        }, new MustacheTemplateEngine());
+
+        // Mostrar listado completo de carreras
+        get("/carreras", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            // Trae todas las filas de la tabla 'carreras' y las convierte a mapas para la vista
+            model.put("carreras", Carrera.findAll().toMaps());
+            
+            return new ModelAndView(model, "carreras_list.mustache");
+        }, new MustacheTemplateEngine());
 
     } // Fin del método main
 } // Fin de la clase App

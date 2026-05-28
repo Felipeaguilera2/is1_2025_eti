@@ -1,7 +1,9 @@
 -- Elimina las tablas si ya existen para asegurar un inicio limpio
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS profesor; 
-DROP TABLE IF EXISTS person;   
+DROP TABLE IF EXISTS person;
+DROP TABLE IF EXISTS carrera;
+
 
 -- Crea la tabla 'person' (entidad padre)
 CREATE TABLE person 
@@ -27,3 +29,10 @@ CREATE TABLE users (
     name TEXT NOT NULL UNIQUE,          -- Nombre de usuario (TEXT es el tipo de cadena recomendado para SQLite), con restricción UNIQUE
     password TEXT NOT NULL           -- Contraseña hasheada (TEXT es el tipo de cadena recomendado para SQLite)
 );
+
+CREATE TABLE carrera (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL
+);
+
