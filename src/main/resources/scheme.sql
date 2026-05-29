@@ -27,3 +27,20 @@ CREATE TABLE users (
     name TEXT NOT NULL UNIQUE,          -- Nombre de usuario (TEXT es el tipo de cadena recomendado para SQLite), con restricción UNIQUE
     password TEXT NOT NULL           -- Contraseña hasheada (TEXT es el tipo de cadena recomendado para SQLite)
 );
+
+-- Crea la tabla 'materia'
+CREATE TABLE materia (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_materia INTEGER NOT NULL UNIQUE,
+    nombre TEXT NOT NULL,
+    plan_materia TEXT NOT NULL
+);
+
+-- Crea la tabla intermedia para las relaciones correlativas (Recursiva)
+CREATE TABLE correlativas (
+    materia_id INTEGER NOT NULL,
+    correlativa_id INTEGER NOT NULL,
+    PRIMARY KEY (materia_id, correlativa_id),
+    FOREIGN KEY (materia_id) REFERENCES materia(id) ON DELETE CASCADE,
+    FOREIGN KEY (correlativa_id) REFERENCES materia(id) ON DELETE CASCADE
+);
