@@ -1,13 +1,139 @@
 package com.is1.proyecto;
 
-
+// Importaciones modernas de JUnit 5 (Jupiter)
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class AppTest {
+import org.javalite.activejdbc.Base;
+import org.mindrot.jbcrypt.BCrypt;
+
+import com.is1.proyecto.models.Carrera;
+import com.is1.proyecto.models.Materia;
+import com.is1.proyecto.models.User;
+import com.is1.proyecto.models.Persona;
+import com.is1.proyecto.models.Profesor;
+
+public class AppTest {
+
+    @BeforeEach
+    public void before() {
+        Base.open("org.sqlite.JDBC", "jdbc:sqlite:db/dev.db", "", "");
+        Base.openTransaction();
+    }
+
+    @AfterEach
+    public void after() {
+        Base.rollbackTransaction();
+        Base.close();
+    }
 
     @Test
-    void exampleTest() {
-        assertTrue(true); // Un test simple que siempre pasa
+    public void testCrearYBuscarCarrera() {
+        Carrera c = new Carrera();
+        c.set("codigo", "TEST-COMP");
+        c.set("nombre", "Ciencias de la Computación");
+        
+        // En JUnit 5, el mensaje de error va al final
+        assertTrue(c.saveIt(), "La carrera debería guardarse correctamente");
+
+        Carrera encontrada = Carrera.findFirst("codigo = ?", "TEST-COMP");
+        assertNotNull(encontrada, "Debería encontrar la carrera recién creada");
+        assertEquals("Ciencias de la Computación", encontrada.getString("nombre"));
+    }
+
+    @Test
+    public void testCrearMateriaObligatoriaYElectiva() {
+        Materia m1 = new Materia();
+        m1.set("codigo_materia", 9901);
+        m1.set("nombre", "Algoritmos I");
+        m1.set("plan_materia", "2024");
+        m1.set("es_obligatoria", 1);
+        assertTrue(m1.saveIt(), "Debería guardar materia obligatoria");
+
+        Materia m2 = new Materia();
+        m2.set("codigo_materia", 9902);
+        m2.set("nombre", "Astronomía Básica");
+        m2.set("plan_materia", "2024");
+        m2.set("es_obligatoria", 0);
+        assertTrue(m2.saveIt(), "Debería guardar materia electiva");
+
+        Materia recup1 = Materia.findFirst("codigo_materia = ?", 9901);
+        Materia recup2 = Materia.findFirst("codigo_materia = ?", 9902);
+        
+        assertEquals(1, recup1.getInteger("es_obligatoria").intValue());
+        assertEquals(0, recup2.getInteger("es_obligatoria").intValue());
+    }
+
+    @Test
+    public void testModificacionYBorradoDeMateria() {
+        Materia m = new Materia();
+        m.set("codigo_materia", 9903);
+        m.set("nombre", "Materia Temporal");
+        m.set("plan_materia", "2020");
+        m.set("es_obligatoria", 1);
+        m.saveIt();
+        
+        Object materiaId = m.getId();
+
+        Materia aModificar = Materia.findById(materiaId);
+        aModificar.set("plan_materia", "2026");
+        assertTrue(aModificar.saveIt());
+        
+        Materia modificada = Materia.findById(materiaId);
+        assertEquals("2026", modificada.getString("plan_materia"));
+
+        assertTrue(modificada.delete());
+        assertNull(Materia.findById(materiaId), "La materia ya no debería existir");
+    }
+
+    @Test
+    public void testCreacionDeUsuarioYHasheoDePassword() {
+        String passwordPlana = "secreto123";
+        String hash = BCrypt.hashpw(passwordPlana, BCrypt.gensalt());
+
+        User u = new User();
+        // Usamos los nombres de columnas reales: "name" y "password"
+        u.set("name", "admin_test");
+        u.set("password", hash);
+        assertTrue(u.saveIt(), "El usuario debería guardarse correctamente");
+
+        // Buscamos usando la columna "name"
+        User userLogueado = User.findFirst("name = ?", "admin_test");
+        assertNotNull(userLogueado, "Debería encontrar al usuario recién creado");
+        
+        // Verificamos el hash usando la columna "password"
+        boolean loginCorrecto = BCrypt.checkpw("secreto123", userLogueado.getString("password"));
+        assertTrue(loginCorrecto, "La contraseña debería coincidir con el hash");
+        
+        boolean loginIncorrecto = BCrypt.checkpw("clave_falsa", userLogueado.getString("password"));
+        assertFalse(loginIncorrecto, "Debería rechazar una contraseña incorrecta");
+    }
+    
+    @Test
+    public void testCascadaPersonaAProfesor() {
+        Persona p = new Persona();
+        p.set("nombre", "Fabio");
+        p.set("apellido", "Zorzan");
+        // El DNI es numérico (INTEGER) según tu esquema
+        p.set("dni", 11223344);
+        p.set("correo", "fzorzan@test.unrc.edu.ar");
+        assertTrue(p.saveIt(), "La persona debería guardarse correctamente");
+
+        Profesor prof = new Profesor();
+        // Usamos p.get("dni") en lugar de p.getId()
+        prof.set("dni", p.get("dni"));
+        // Usamos la columna real de tu esquema (nro_legajo) en lugar de titulo
+        prof.set("nro_legajo", 54321);
+        assertTrue(prof.saveIt(), "El profesor debería guardarse correctamente");
+
+        // Recuperamos al profesor buscando por su DNI
+        Profesor profRecuperado = Profesor.findFirst("dni = ?", p.get("dni"));
+        assertNotNull(profRecuperado, "Debería encontrar al profesor");
+        
+        // Recuperamos a la persona buscando por ese mismo DNI
+        Persona personaDelProfesor = Persona.findFirst("dni = ?", profRecuperado.get("dni"));
+        assertEquals("Fabio", personaDelProfesor.getString("nombre"));
     }
 }

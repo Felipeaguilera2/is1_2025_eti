@@ -1,7 +1,12 @@
 -- Elimina las tablas si ya existen para asegurar un inicio limpio
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS profesor; 
-DROP TABLE IF EXISTS person;   
+DROP TABLE IF EXISTS person;
+DROP TABLE IF EXISTS carrera;
+DROP TABLE IF EXISTS materia;
+DROP TABLE IF EXISTS correlativas;
+
+
 
 -- Crea la tabla 'person' (entidad padre)
 CREATE TABLE person 
@@ -33,7 +38,8 @@ CREATE TABLE materia (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     codigo_materia INTEGER NOT NULL UNIQUE,
     nombre TEXT NOT NULL,
-    plan_materia TEXT NOT NULL
+    plan_materia TEXT NOT NULL,
+    es_obligatoria INTEGER NOT NULL DEFAULT 1
 );
 
 -- Crea la tabla intermedia para las relaciones correlativas (Recursiva)
@@ -44,3 +50,11 @@ CREATE TABLE correlativas (
     FOREIGN KEY (materia_id) REFERENCES materia(id) ON DELETE CASCADE,
     FOREIGN KEY (correlativa_id) REFERENCES materia(id) ON DELETE CASCADE
 );
+
+CREATE TABLE carrera (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL
+);
+
+
