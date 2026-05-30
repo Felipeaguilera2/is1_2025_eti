@@ -1,9 +1,8 @@
 package com.is1.proyecto.models;
-
 import org.javalite.activejdbc.Model;
 import org.javalite.activejdbc.annotations.Table;
 
-@Table("person") // Esta anotación asocia explícitamente el modelo 'User' con la tabla 'person' en la DB.
+@Table("person")// Esta anotación asocia explícitamente el modelo 'User' con la tabla 'person' en la DB.
 public class Persona extends Model {
 
     public String getNombre() {
