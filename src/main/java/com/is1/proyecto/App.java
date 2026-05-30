@@ -85,24 +85,46 @@ public class App {
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
                 halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
             }
+            String path = req.pathInfo();
+            
+            // Rutas públicas
+            boolean esRutaPublica = path.equals("/") || 
+                                    path.equals("/login") || 
+                                    path.equals("/logout") || 
+                                    path.startsWith("/user/new") || 
+                                    path.startsWith("/user/create");
+
+            // Solicitud de login para rutas privadas
+            if (!esRutaPublica) {
+                Boolean loggedIn = req.session().attribute("loggedIn");
+                
+                // Si la sesión no existe o expiró
+                if (loggedIn == null || !loggedIn) {
+                    // Redirreción a login con mensaje de error
+                    res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+                    //Mata la ejecución para que no se muestre la pantalla protegida
+                    halt(); 
+                }
+            }
+
         });
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
         // Este filtro se ejecuta después de que cada solicitud HTTP ha sido procesada.
        // --- Filtro 'after' para cerrar la conexión y limpiar caché ---
-    after((req, res) -> {
-    // 1. Desactivar el almacenamiento en caché del navegador (Evita el "error de volver adelante")
-        res.header("Cache-Control", "no-cache, no-store, must-revalidate"); // HTTP 1.1
-        res.header("Pragma", "no-cache"); // HTTP 1.0
-        res.header("Expires", "0"); // Proxies
+        after((req, res) -> {
+        //Desactivar el almacenamiento en caché del navegador 
+            res.header("Cache-Control", "no-cache, no-store, must-revalidate"); // HTTP 1.1
+            res.header("Pragma", "no-cache"); // HTTP 1.0
+            res.header("Expires", "0"); // Proxies
 
-    // 2. Cierre de conexión de la base de datos (lo que ya tenías)
-    try {
-        Base.close();
-    } catch (Exception e) {
-        System.err.println("Error al cerrar conexión con ActiveJDBC: " + e.getMessage());
-    }
-    });
+            //Cierre de conexión de la base de datos
+            try {
+                Base.close();
+            } catch (Exception e) {
+                System.err.println("Error al cerrar conexión con ActiveJDBC: " + e.getMessage());
+            }
+        });
 
         // --- Rutas GET para renderizar formularios y páginas HTML ---
 
@@ -111,7 +133,7 @@ public class App {
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
 
-            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
+            // Obtener y añadir mensaje de éxito de los query parameters
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
@@ -142,7 +164,8 @@ public class App {
             if (currentUsername == null || loggedIn == null || !loggedIn) {
                 System.out.println("DEBUG: Acceso no autorizado a /dashboard. Redirigiendo a /login.");
                 // Redirige al login con un mensaje de error.
-                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+                res.redirect("/?error=Debes iniciar sesión para acceder a esta página.");
+                halt();
                 return null; // Importante retornar null después de una redirección.
             }
 
@@ -155,16 +178,17 @@ public class App {
 
         // GET: Ruta para cerrar la sesión del usuario.
         get("/logout", (req, res) -> {
+            req.session().removeAttribute("currentUserUsername");
+            req.session().removeAttribute("loggedIn");
             // Invalida completamente la sesión del usuario.
             // Esto elimina todos los atributos guardados en la sesión y la marca como inválida.
             // La cookie JSESSIONID en el navegador también será gestionada para invalidarse.
             req.session().invalidate();
 
-            System.out.println("DEBUG: Sesión cerrada. Redirigiendo a /login.");
+            System.out.println("DEBUG: Sesión cerrada. Redirigiendo a login.");
 
             // Redirige al usuario a la página de login con un mensaje de éxito.
-            res.redirect("/");
-
+            res.redirect("/?message=" + URLEncoder.encode("Has cerrado sesión exitosamente.", StandardCharsets.UTF_8));
             return null; // Importante retornar null después de una redirección.
         });
 
@@ -183,6 +207,19 @@ public class App {
             }
             return new ModelAndView(model, "login.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+
+        get("/login", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "login.mustache");
+        }, new MustacheTemplateEngine());
 
         // GET: Ruta de alias para el formulario de creación de cuenta.
         // En una aplicación real, probablemente querrías unificar con '/user/create' para evitar duplicidad.

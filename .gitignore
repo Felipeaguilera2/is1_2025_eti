@@ -26,7 +26,6 @@ replay_pid*
 # Ignorados específicos del proyecto
 # =========================
 target/
-db/*
 !db/.gitkeep
 *.db
 *.sqlite
