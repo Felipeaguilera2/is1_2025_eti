@@ -1,21 +1,21 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
 import java.io.InputStream;
+import java.util.Scanner;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import java.util.Scanner; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+// Importaciones necesarias para la aplicación Spark
+import com.fasterxml.jackson.databind.ObjectMapper; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import static spark.Spark.*; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
 
+// Importaciones específicas para ActiveJDBC (ORM para la base de datos)
 import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
 import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
 
-import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
-import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
-import com.is1.proyecto.models.Persona; // Para crear mapas de datos (modelos para las plantillas).
-import com.is1.proyecto.models.Profesor; // Interfaz Map, utilizada para Map.of() o HashMap.
-import com.is1.proyecto.models.User; // Clase Singleton para la configuración de la base de datos.
+// Importaciones de Spark para renderizado de plantillas
+import spark.ModelAndView; // Representa un modelo de datos y el nombre de la vista a renderizar.
+import spark.template.mustache.MustacheTemplateEngine; // Motor de plantillas Mustache para Spark.
 
 // Importaciones estándar de Java
 import java.util.HashMap; // Para crear mapas de datos (modelos para las plantillas).
@@ -25,17 +25,8 @@ import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
 import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor; 
-import com.is1.proyecto.models.User; // Modelo de Act iveJDBC que representa la tabla 'users'.
-import com.is1.proyecto.models.Carrera; // Modelo de Act iveJDBC que representa la tabla 'users'.
-import spark.ModelAndView;
-import static spark.Spark.after;
-import static spark.Spark.before; // Modelo de Act iveJDBC que representa la tabla 'users'.
-import static spark.Spark.get;
-import static spark.Spark.halt;
-import static spark.Spark.port;
-import static spark.Spark.post;
-import spark.template.mustache.MustacheTemplateEngine;
-
+import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import com.is1.proyecto.models.Carrera; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
 
 /**
  * Clase principal de la aplicación Spark.

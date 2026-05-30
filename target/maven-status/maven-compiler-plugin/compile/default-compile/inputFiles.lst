@@ -1,5 +1,6 @@
-/mnt/c/Users/Valentin/Universidad/Ingenieria-De-Software-II/practicas/is1_2025_eti/src/main/java/com/is1/proyecto/models/Persona.java
-/mnt/c/Users/Valentin/Universidad/Ingenieria-De-Software-II/practicas/is1_2025_eti/src/main/java/com/is1/proyecto/models/Profesor.java
-/mnt/c/Users/Valentin/Universidad/Ingenieria-De-Software-II/practicas/is1_2025_eti/src/main/java/com/is1/proyecto/models/User.java
-/mnt/c/Users/Valentin/Universidad/Ingenieria-De-Software-II/practicas/is1_2025_eti/src/main/java/com/is1/proyecto/App.java
-/mnt/c/Users/Valentin/Universidad/Ingenieria-De-Software-II/practicas/is1_2025_eti/src/main/java/com/is1/proyecto/config/DBConfigSingleton.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/models/User.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/config/DBConfigSingleton.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/models/Carrera.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/models/Profesor.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/App.java
+/home/valentin/Universidad/IS-II/is1_2025_eti/src/main/java/com/is1/proyecto/models/Persona.java
