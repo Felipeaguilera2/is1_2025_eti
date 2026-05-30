@@ -14,20 +14,19 @@ import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de d
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
 import com.is1.proyecto.models.Carrera; // Para crear mapas de datos (modelos para las plantillas).
 import com.is1.proyecto.models.Estudiante; // Interfaz Map, utilizada para Map.of() o HashMap.
-import com.is1.proyecto.models.Persona; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.Profesor;
-import com.is1.proyecto.models.User;
+import com.is1.proyecto.models.Materia; // Clase Singleton para la configuración de la base de datos.
+import com.is1.proyecto.models.Persona;
+import com.is1.proyecto.models.Profesor; 
+import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
 
-import spark.ModelAndView;
-import static spark.Spark.after; // Modelo de Act iveJDBC que representa la tabla 'users'.
-import static spark.Spark.before; // Modelo de Act iveJDBC que representa la tabla 'users'.
+import spark.ModelAndView; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
+import static spark.Spark.after; //Modelo de ActiveJDBC que representa la tabla 'materia'
+import static spark.Spark.before; //Modelo de ActiveJDBC que representa la tabla 'materia'
 import static spark.Spark.get;
 import static spark.Spark.halt;
 import static spark.Spark.port;
 import static spark.Spark.post;
 import spark.template.mustache.MustacheTemplateEngine;
-
-
 /**
  * Clase principal de la aplicación Spark.
  * Configura las rutas, filtros y el inicio del servidor web.
@@ -85,16 +84,43 @@ public class App {
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
                 halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
             }
+            String path = req.pathInfo();
+            
+            // Rutas públicas
+            boolean esRutaPublica = path.equals("/") || 
+                                    path.equals("/login") || 
+                                    path.equals("/logout") || 
+                                    path.startsWith("/user/new") || 
+                                    path.startsWith("/user/create");
+
+            // Solicitud de login para rutas privadas
+            if (!esRutaPublica) {
+                Boolean loggedIn = req.session().attribute("loggedIn");
+                
+                // Si la sesión no existe o expiró
+                if (loggedIn == null || !loggedIn) {
+                    // Redirreción a login con mensaje de error
+                    res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+                    //Mata la ejecución para que no se muestre la pantalla protegida
+                    halt(); 
+                }
+            }
+
         });
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
         // Este filtro se ejecuta después de que cada solicitud HTTP ha sido procesada.
+       // --- Filtro 'after' para cerrar la conexión y limpiar caché ---
         after((req, res) -> {
+        //Desactivar el almacenamiento en caché del navegador 
+            res.header("Cache-Control", "no-cache, no-store, must-revalidate"); // HTTP 1.1
+            res.header("Pragma", "no-cache"); // HTTP 1.0
+            res.header("Expires", "0"); // Proxies
+
+            //Cierre de conexión de la base de datos
             try {
-                // Cierra la conexión a la base de datos para liberar recursos.
                 Base.close();
             } catch (Exception e) {
-                // Si ocurre un error al cerrar la conexión, se registra.
                 System.err.println("Error al cerrar conexión con ActiveJDBC: " + e.getMessage());
             }
         });
@@ -106,7 +132,7 @@ public class App {
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
 
-            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
+            // Obtener y añadir mensaje de éxito de los query parameters
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
@@ -137,7 +163,8 @@ public class App {
             if (currentUsername == null || loggedIn == null || !loggedIn) {
                 System.out.println("DEBUG: Acceso no autorizado a /dashboard. Redirigiendo a /login.");
                 // Redirige al login con un mensaje de error.
-                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+                res.redirect("/?error=Debes iniciar sesión para acceder a esta página.");
+                halt();
                 return null; // Importante retornar null después de una redirección.
             }
 
@@ -150,16 +177,17 @@ public class App {
 
         // GET: Ruta para cerrar la sesión del usuario.
         get("/logout", (req, res) -> {
+            req.session().removeAttribute("currentUserUsername");
+            req.session().removeAttribute("loggedIn");
             // Invalida completamente la sesión del usuario.
             // Esto elimina todos los atributos guardados en la sesión y la marca como inválida.
             // La cookie JSESSIONID en el navegador también será gestionada para invalidarse.
             req.session().invalidate();
 
-            System.out.println("DEBUG: Sesión cerrada. Redirigiendo a /login.");
+            System.out.println("DEBUG: Sesión cerrada. Redirigiendo a login.");
 
             // Redirige al usuario a la página de login con un mensaje de éxito.
-            res.redirect("/");
-
+            res.redirect("/?message=" + URLEncoder.encode("Has cerrado sesión exitosamente.", StandardCharsets.UTF_8));
             return null; // Importante retornar null después de una redirección.
         });
 
@@ -178,6 +206,19 @@ public class App {
             }
             return new ModelAndView(model, "login.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+
+        get("/login", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "login.mustache");
+        }, new MustacheTemplateEngine());
 
         // GET: Ruta de alias para el formulario de creación de cuenta.
         // En una aplicación real, probablemente querrías unificar con '/user/create' para evitar duplicidad.
@@ -323,9 +364,112 @@ public class App {
             }
         });
 
+       // GET: Muestra el formulario de profesor y captura mensajes de éxito/error
         get("/profesor/login", (req, res) -> {
-            return new ModelAndView(new HashMap<>(), "professor_login.mustache"); // No pasa un modelo específico, solo el formulario.
-        }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+            Map<String, Object> model = new HashMap<>();
+
+            // Capturar y añadir mensaje de éxito de los query parameters
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+
+            // Capturar y añadir mensaje de error de los query parameters
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            return new ModelAndView(model, "profesor/professor_login.mustache"); 
+        }, new MustacheTemplateEngine());
+
+        // POST: Maneja el envío del formulario de inicio de sesión / alta de profesor
+        post("/profesor/login", (req, res) -> {
+            String dni = req.queryParams("prof_dni");
+            String legajo = req.queryParams("nro_legajo");
+
+            // Validaciones básicas: campos no nulos ni vacíos
+            if (dni == null || dni.isEmpty() || legajo == null || legajo.isEmpty()) { 
+                res.status(400); // Bad Request
+                String msg = URLEncoder.encode("El DNI y el Número de Legajo son requeridos.", StandardCharsets.UTF_8);
+                res.redirect("/profesor/login?error=" + msg);
+                return null;
+            }
+            
+            Integer pdni;
+            Integer plegajo;
+            try {
+                pdni = Integer.valueOf(dni.trim());
+                plegajo = Integer.valueOf(legajo.trim());
+            } catch (NumberFormatException e) {
+                 res.status(400); // Bad Request
+                 String msg = URLEncoder.encode("El DNI y el Número de Legajo deben ser números válidos.", StandardCharsets.UTF_8);
+                 res.redirect("/profesor/login?error=" + msg);
+                 return null;
+            }
+        
+            try {
+                // 1. Criterio de Aceptación: Buscar primero por número de legajo numérico
+                Profesor existingProfesor = Profesor.findFirst("nro_legajo = ?", plegajo);
+
+                if (existingProfesor != null) {
+                    res.status(409); // Conflict
+                    String msg = URLEncoder.encode("El Número de Legajo (" + legajo + ") ya está en uso por otro profesor.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/login?error=" + msg);
+                    return null;
+                }
+                
+                // CORRECCIÓN CRÍTICA: Buscamos a la persona usando 'pdni' (Integer), NO el String 'dni'
+                Persona dn = Persona.findFirst("dni = ?", pdni);
+
+                if (dn == null) {
+                    res.status(401); // Unauthorized
+                    String msg = URLEncoder.encode("El DNI " + dni + " no está cargado en el sistema. Por favor, registra la persona primero.", StandardCharsets.UTF_8); 
+                    res.redirect("/profesor/login?error=" + msg);
+                    return null;
+                }
+                
+                // 3. Registramos el nuevo profesor vinculando el DNI correspondiente
+                Profesor newProfesor = new Profesor();
+                newProfesor.set("dni", pdni);
+                newProfesor.set("nro_legajo", plegajo);
+                newProfesor.saveIt(); // Guarda de forma efectiva en la tabla 'profesor'
+
+                res.status(201); // Created
+
+                // Redirigir con mensaje codificado para el cartel verde
+                String mensajeExito = "Profesor con Legajo " + legajo + " cargado exitosamente.";
+                String msgEncoded = URLEncoder.encode(mensajeExito, StandardCharsets.UTF_8);
+                res.redirect("/profesor/login?message=" + msgEncoded);
+                return null;
+
+            } catch (Exception e) {
+                System.err.println("Error al registrar profesor: " + e.getMessage());
+                e.printStackTrace(); 
+                res.status(500); // Internal Server Error
+                String msg = URLEncoder.encode("Error interno al registrar el profesor: " + e.getMessage(), StandardCharsets.UTF_8);
+                res.redirect("/profesor/login?error=" + msg);
+                return null;
+            }
+        }, new MustacheTemplateEngine());
+
+        get("/profesor/gestion", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+
+            // Capturar y añadir mensaje de éxito de los query parameters
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+
+            // Capturar y añadir mensaje de error de los query parameters
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            return new ModelAndView(model, "profesor/gestion_profesor.mustache"); 
+        }, new MustacheTemplateEngine());
 
          // GET: Muestra el formulario de persona y captura mensajes de éxito/error
         // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
@@ -347,82 +491,6 @@ public class App {
             // Renderiza la plantilla 'professor_login.mustache' con los datos del modelo.
             return new ModelAndView(model, "person_form.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
-
-        // POST: Maneja el envío del formulario de inicio de sesión.
-        post("/profesor/login", (req, res) -> {
-            Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla de login.
-
-            String dni = req.queryParams("prof_dni");
-            String legajo = req.queryParams("nro_legajo");
-
-            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o vacíos.
-            if (dni == null || dni.isEmpty() || legajo == null || legajo.isEmpty()) { 
-                res.status(400); // Bad Request.
-                model.put("errorMessage", "Dni y legajo son necesarios.");
-                return new ModelAndView(model, "professor_login.mustache"); // Renderiza la plantilla de login con error.
-            }
-            
-            Integer pdni;
-            Integer plegajo;
-            // Bloque try para la conversión de números.
-            try {
-                pdni = Integer.valueOf(dni);
-                plegajo = Integer.valueOf(legajo);
-            } catch (NumberFormatException e) {
-                 res.status(400); // Bad Request.
-                 model.put("errorMessage", "El Dni y el Número de Legajo deben ser números válidos.");
-                 return new ModelAndView(model, "professor_login.mustache");
-            }
-        
-            
-            try {
-                // Busca el dni en la base de datos por el dni.
-                Persona dn = Persona.findFirst("dni = ?", dni);
-
-                //Si no se encuentra ninguna cuenta con ese dni.
-                if (dn == null) {
-                    res.status(401); // Unauthorized.
-                    model.put("errorMessage", "El dni: " + dni + " no esta cargado en el sistema. Por favor registra la persona"); 
-                    return new ModelAndView(model, "professor_login.mustache"); // Renderiza la plantilla de login con error.
-                }
-                
-                //Verificar si el profesor ya existe.
-                Profesor existingProfesor = Profesor.findFirst("dni = ?", dni);
-
-                if (existingProfesor != null) {
-                    // El DNI ya está asociado a un profesor, se asume que solo intenta loguear o confirmar.
-                    res.status(200); // OK.
-                    res.redirect("/profesor/login?message=El profesor (DNI: " + dni + ") ya estaba cargado. Se podría proceder con la asignación de materia.");
-                    return null; 
-                }
-                
-                //Si la persona existe y no es profesor, la registramos.
-                Profesor newProfesor = new Profesor();
-                newProfesor.setDni(pdni);
-                newProfesor.setLegajo(plegajo);
-                newProfesor.saveIt(); // Guarda el nuevo profesor en la tabla 'profesor'.
-
-                res.status(201); // Created.
-
-                // Redirigir al formulario de profesor con un mensaje de éxito
-                res.redirect("/profesor/login?message=Profesor (DNI: " + dni + ") cargado exitosamente. Puede continuar con la asignación de materia.");
-                return null; // Retorna null después de una redirección.
-
-            } catch (Exception e) {
-                //Capturar errores de DB (ej. nro_legajo duplicado, DBException, etc.)
-                System.err.println("Error al registrar profesor: " + e.getMessage());
-                e.printStackTrace(); 
-                res.status(500); // Internal Server Error.
-                
-                // Manejo de error de legajo duplicado.
-                if (e.getMessage().contains("nro_legajo")) {
-                    model.put("errorMessage", "El Número de Legajo (" + legajo + ") ya está en uso por otro profesor. Por favor, verifique.");
-                } else {
-                    model.put("errorMessage", "Error interno al registrar el profesor. Intente de nuevo.");
-                }
-                return new ModelAndView(model, "professor_login.mustache");
-            }
-        }, new MustacheTemplateEngine()); 
 
         // POST: Maneja el envío del formulario de registro de nueva Persona.
         post("/person/new", (req, res) -> {
@@ -493,8 +561,7 @@ public class App {
                 res.redirect("/person/new?error=" + msg);
                 return ""; 
             }
-        }
-    );
+        });
 
         get("/carrera/new", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -538,8 +605,296 @@ public class App {
             
             return new ModelAndView(model, "carreras_list.mustache");
         }, new MustacheTemplateEngine());
+        // 1. GET: Inicializa la pantalla de baja
+        get("/profesor/baja", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+            return new ModelAndView(model, "profesor/baja_profesor.mustache");
+        }, new MustacheTemplateEngine());
 
-        
+
+        // 2. POST: Verifica la existencia del legajo
+        post("/profesor/baja/verificar", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String legajoStr = req.queryParams("nro_legajo");
+
+            if (legajoStr == null || legajoStr.isEmpty()) {
+                res.redirect("/profesor/baja?error=" + URLEncoder.encode("Debe ingresar un número de legajo válido.", StandardCharsets.UTF_8));
+                return null;
+            }
+
+            try {
+                Integer legajo = Integer.valueOf(legajoStr.trim());
+                Profesor prof = Profesor.findFirst("nro_legajo = ?", legajo);
+
+                if (prof == null) {
+                    String msg = URLEncoder.encode("El profesor con Legajo " + legajoStr + " no se encuentra en la base de datos.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/baja?error=" + msg);
+                    return null;
+                }
+
+                // Inyectamos como Strings explícitos para que Mustache no falle al mapear objetos
+                model.put("profesorEncontrado", true);
+                model.put("legajoEliminar", String.valueOf(prof.get("nro_legajo")));
+                model.put("dniAsociado", String.valueOf(prof.get("dni")));
+
+                return new ModelAndView(model, "profesor/baja_profesor.mustache");
+
+            } catch (NumberFormatException e) {
+                res.redirect("/profesor/baja?error=" + URLEncoder.encode("El legajo debe ser un valor numérico.", StandardCharsets.UTF_8));
+                return null;
+            } catch (Exception e) {
+                System.err.println("Error en verificar: " + e.getMessage());
+                res.redirect("/profesor/baja?error=" + URLEncoder.encode("Error interno al verificar el legajo.", StandardCharsets.UTF_8));
+                return null;
+            }
+        }, new MustacheTemplateEngine());
+
+        // 3. POST: Confirma y elimina físicamente la fila en la tabla profesor
+        post("/profesor/baja/confirmar", (req, res) -> {
+            String legajoStr = req.queryParams("nro_legajo");
+
+            if (legajoStr == null || legajoStr.isEmpty()) {
+                res.redirect("/profesor/baja?error=" + URLEncoder.encode("Falta el número de legajo para procesar la baja.", StandardCharsets.UTF_8));
+                return null;
+            }
+
+            try {
+                Integer legajo = Integer.valueOf(legajoStr.trim());
+                
+                // Verificamos primero si el profesor existe antes de borrar
+                Profesor prof = Profesor.findFirst("nro_legajo = ?", legajo);
+
+                if (prof != null) {
+                    // Base.exec ejecuta SQL puro de forma ultra rápida y segura en el hilo actual de la DB
+                    Base.exec("DELETE FROM profesor WHERE nro_legajo = ?", legajo);
+                    
+                    String msg = URLEncoder.encode("La operación ocurrió exitosamente. Profesor eliminado.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/baja?message=" + msg);
+                } else {
+                    String msg = URLEncoder.encode("El profesor ya no existe o fue eliminado por otro proceso.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/baja?error=" + msg);
+                }
+                return null;
+
+            } catch (Exception e) {
+                System.err.println("CRÍTICO: Error en confirmación: " + e.getMessage());
+                e.printStackTrace();
+                String msg = URLEncoder.encode("Error al confirmar la eliminación: " + e.getMessage(), StandardCharsets.UTF_8);
+                res.redirect("/profesor/baja?error=" + msg);
+                return null;
+            }
+        }, new MustacheTemplateEngine());
+
+        // 1. GET: Inicializa la pantalla de consulta/edición vacía
+        get("/profesor/consulta", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            return new ModelAndView(model, "profesor/profesor_consulta.mustache");
+        }, new MustacheTemplateEngine());
+
+        // 2. POST: Procesa la búsqueda por legajo y acopla los datos de la Persona
+        post("/profesor/consulta", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String legajoStr = req.queryParams("nro_legajo");
+
+            if (legajoStr == null || legajoStr.isEmpty()) {
+                res.redirect("/profesor/consulta?error=" + URLEncoder.encode("Debe ingresar un número de legajo.", StandardCharsets.UTF_8));
+                return null;
+            }
+
+            try {
+                Integer legajo = Integer.valueOf(legajoStr.trim());
+                model.put("legajoBuscado", legajo);
+
+                Profesor prof = Profesor.findFirst("nro_legajo = ?", legajo);
+
+                if (prof == null) {
+                    String msg = URLEncoder.encode("El profesor con el legajo ingresado no existe en el sistema.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/consulta?error=" + msg);
+                    return null;
+                }
+
+                Integer personaDni = prof.getInteger("dni");
+                Persona persona = Persona.findFirst("dni = ?", personaDni);
+
+                if (persona != null) {
+                    model.put("profesorEncontrado", true);
+                    model.put("legajo", String.valueOf(prof.get("nro_legajo")));
+                    model.put("dni", String.valueOf(persona.get("dni")));
+                    model.put("nombre", persona.get("nombre"));
+                    model.put("apellido", persona.get("apellido"));
+                    model.put("correo", persona.get("correo"));
+                } else {
+                    model.put("errorMessage", "Error: No se encontraron datos personales válidos para este profesor.");
+                }
+
+                return new ModelAndView(model, "profesor/profesor_consulta.mustache");
+
+            } catch (NumberFormatException e) {
+                res.redirect("/profesor/consulta?error=" + URLEncoder.encode("El legajo debe ser un valor numérico.", StandardCharsets.UTF_8));
+                return null;
+            } catch (Exception e) {
+                res.redirect("/profesor/consulta?error=" + URLEncoder.encode("Error interno al procesar la consulta.", StandardCharsets.UTF_8));
+                return null;
+            }
+        }, new MustacheTemplateEngine());
+
+        // 3. POST: Procesa la modificación real y guarda los cambios mediante SQL directo
+        post("/profesor/editar", (req, res) -> {
+            String legajoStr = req.queryParams("nro_legajo");
+            String dniStr = req.queryParams("dni");
+            String nombre = req.queryParams("nombre");
+            String apellido = req.queryParams("apellido");
+            String correo = req.queryParams("correo");
+
+            if (dniStr == null || dniStr.trim().isEmpty()) {
+                String msg = URLEncoder.encode("Error: El formulario no envió el DNI del profesor.", StandardCharsets.UTF_8);
+                res.redirect("/profesor/consulta?error=" + msg);
+                return null;
+            }
+
+            try {
+                Integer pdni = Integer.valueOf(dniStr.trim());
+                
+                // Verificamos primero si la persona existe en la base de datos
+                Persona persona = Persona.findFirst("dni = ?", pdni);
+
+                if (persona != null) {
+                    // Preparamos los valores limpiando espacios, o manteniendo los actuales si vinieran vacíos
+                    String nuevoNombre = (nombre != null) ? nombre.trim() : persona.getString("nombre");
+                    String nuevoApellido = (apellido != null) ? apellido.trim() : persona.getString("apellido");
+                    String nuevoCorreo = (correo != null) ? correo.trim() : persona.getString("correo");
+
+                    Base.exec("UPDATE person SET nombre = ?, apellido = ?, correo = ? WHERE dni = ?", 
+                              nuevoNombre, nuevoApellido, nuevoCorreo, pdni);
+
+                    String msg = URLEncoder.encode("Datos del profesor con Legajo " + legajoStr + " actualizados con éxito.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/consulta?message=" + msg);
+                } else {
+                    String msg = URLEncoder.encode("Error: El DNI " + dniStr + " no corresponde a ninguna persona registrada.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/consulta?error=" + msg);
+                }
+                return null;
+
+            } catch (Exception e) {
+                System.err.println("CRÍTICO: Error al actualizar la persona en la DB:");
+                e.printStackTrace(); 
+                
+                String msg = URLEncoder.encode("Error interno al guardar los cambios: " + e.getMessage(), StandardCharsets.UTF_8);
+                res.redirect("/profesor/consulta?error=" + msg);
+                return null;
+            }
+        }, new MustacheTemplateEngine());
+
+        get("/materias", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            model.put("materias", Materia.findAll().toMaps());            
+            String error = req.queryParams("error");
+            if (error != null) model.put("errorMessage", error);
+            String msg = req.queryParams("message");
+            if (msg != null) model.put("successMessage", msg);        
+            return new ModelAndView(model, "materia_gestion.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Registrar el Alta de una nueva Materia
+        post("/materias/new", (req, res) -> {
+            String codigoStr = req.queryParams("codigo_materia");
+            String nombre = req.queryParams("nombre");
+            String plan = req.queryParams("plan_materia");
+            String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+            String obligatoriaParam = req.queryParams("es_obligatoria");
+            int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+
+            if (Materia.findFirst("codigo_materia = ?", codigoStr) != null) {
+                res.redirect("/materias?error=" + URLEncoder.encode("El código de materia ya existe.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            Materia m = new Materia();
+            m.set("codigo_materia", Integer.valueOf(codigoStr));
+            m.set("nombre", nombre);
+            m.set("plan_materia", plan);
+            m.set("es_obligatoria", esObligatoria);
+            m.saveIt();
+
+            // Lógica para guardar correlativas (Requiere que el modelo Materia tenga este método)
+            if (correlativasSeleccionadas != null) {
+                for (String idCorr : correlativasSeleccionadas) {
+                    m.agregarCorrelativa(Integer.valueOf(idCorr));
+                }
+            }
+
+            res.redirect("/materias?message=" + URLEncoder.encode("Materia creada con éxito.", StandardCharsets.UTF_8));
+            return "";
+        });
+
+        // GET: Renderizar formulario para Modificar una materia existente
+        get("/materias/edit/:id", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            Materia m = Materia.findById(req.params(":id"));
+            if (m == null) {
+                res.redirect("/materias?error=Materia no encontrada");
+                return null;
+            }
+            model.put("materia", m.toMap());
+            model.put("todasMaterias", Materia.where("id != ?", m.getId()).toMaps());
+            return new ModelAndView(model, "materia_edit.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Procesar y aplicar la Modificación de datos
+        post("/materias/edit/:id", (req, res) -> {
+            Materia m = Materia.findById(req.params(":id"));
+            if (m != null) {
+                String obligatoriaParam = req.queryParams("es_obligatoria");
+                int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+                m.set("nombre", req.queryParams("nombre"));
+                m.set("plan_materia", req.queryParams("plan_materia"));
+                m.set("es_obligatoria", esObligatoria);
+                m.saveIt();
+
+                m.borrarCorrelatividades();
+                String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+                if (correlativasSeleccionadas != null) {
+                    for (String idCorr : correlativasSeleccionadas) {
+                        m.agregarCorrelativa(Integer.valueOf(idCorr));
+                    }
+                }
+                res.redirect("/materias?message=" + URLEncoder.encode("Materia modificada correctamente.", StandardCharsets.UTF_8));
+            } else {
+                res.redirect("/materias?error=Error al modificar.");
+            }
+            return "";
+        });        
+        // GET: Procesar la Baja de una materia
+        get("/materias/delete/:id", (req, res) -> {
+            Materia m = Materia.findById(req.params(":id"));
+            if (m != null) {
+                m.borrarCorrelatividades();
+                m.delete();
+                res.redirect("/materias?message=" + URLEncoder.encode("Materia y correlatividades eliminadas.", StandardCharsets.UTF_8));
+            } else {
+                res.redirect("/materias?error=No se pudo eliminar la materia.");
+            }
+            return "";
+        });
         // GET: Listar todos los estudiantes y mostrar pantalla de gestión
         get("/estudiantes", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -548,12 +903,6 @@ public class App {
             String sql = "SELECT e.id, e.dni, e.cod_estudiante, p.nombre, p.apellido " +
                          "FROM estudiante e JOIN person p ON e.dni = p.dni";
             model.put("estudiantes", org.javalite.activejdbc.Base.findAll(sql));
-            
-            String error = req.queryParams("error");
-            if (error != null) model.put("errorMessage", error);
-            String msg = req.queryParams("message");
-            if (msg != null) model.put("successMessage", msg);
-
             return new ModelAndView(model, "estudiante_gestion.mustache");
         }, new MustacheTemplateEngine());
 
@@ -644,7 +993,6 @@ public class App {
             }
             return "";
         });
-
         // GET: Procesar la Baja de un estudiante
         get("/estudiantes/delete/:id", (req, res) -> {
             Estudiante est = Estudiante.findById(req.params(":id"));
@@ -661,7 +1009,8 @@ public class App {
                 res.redirect("/estudiantes?error=No se pudo encontrar el estudiante a eliminar.");
             }
             return "";
-        });
         
+        });
+    
     } // Fin del método main
 } // Fin de la clase App
