@@ -1,4 +1,4 @@
--- Elimina las tablas si ya existen para asegurar un inicio limpio
+-- Elimina las tablas si ya existen para asegurar un inicio limpioselec
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS profesor; 
 DROP TABLE IF EXISTS person;

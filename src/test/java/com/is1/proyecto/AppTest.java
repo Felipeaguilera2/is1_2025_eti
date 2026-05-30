@@ -15,6 +15,9 @@ import com.is1.proyecto.models.User;
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor;
 
+import java.io.InputStream;
+import java.util.Scanner;
+
 public class AppTest {
 
     @BeforeEach
@@ -114,11 +117,11 @@ public class AppTest {
     @Test
     public void testCascadaPersonaAProfesor() {
         Persona p = new Persona();
-        p.set("nombre", "Fabio");
-        p.set("apellido", "Zorzan");
+        p.set("nombre", "Marcelo");
+        p.set("apellido", "Uva");
         // El DNI es numérico (INTEGER) según tu esquema
         p.set("dni", 11223344);
-        p.set("correo", "fzorzan@test.unrc.edu.ar");
+        p.set("correo", "muva@test.unrc.edu.ar");
         assertTrue(p.saveIt(), "La persona debería guardarse correctamente");
 
         Profesor prof = new Profesor();
@@ -134,6 +137,6 @@ public class AppTest {
         
         // Recuperamos a la persona buscando por ese mismo DNI
         Persona personaDelProfesor = Persona.findFirst("dni = ?", profRecuperado.get("dni"));
-        assertEquals("Fabio", personaDelProfesor.getString("nombre"));
+        assertEquals("Marcelo", personaDelProfesor.getString("nombre"));
     }
 }
