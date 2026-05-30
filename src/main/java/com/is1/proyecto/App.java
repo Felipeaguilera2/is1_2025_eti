@@ -27,6 +27,7 @@ import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor; 
 import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
 import com.is1.proyecto.models.Carrera; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
+import com.is1.proyecto.models.Materia; //Modelo de ActiveJDBC que representa la tabla 'materia'
 
 /**
  * Clase principal de la aplicación Spark.
@@ -520,8 +521,7 @@ public class App {
                 res.redirect("/person/new?error=" + msg);
                 return ""; 
             }
-        }
-    );
+        });
 
         get("/carrera/new", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -763,5 +763,100 @@ public class App {
                 return null;
             }
         }, new MustacheTemplateEngine());
+
+        get("/materias", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            model.put("materias", Materia.findAll().toMaps());
+            
+            String error = req.queryParams("error");
+            if (error != null) model.put("errorMessage", error);
+            String msg = req.queryParams("message");
+            if (msg != null) model.put("successMessage", msg);
+
+            return new ModelAndView(model, "materia_gestion.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Registrar el Alta de una nueva Materia
+        post("/materias/new", (req, res) -> {
+            String codigoStr = req.queryParams("codigo_materia");
+            String nombre = req.queryParams("nombre");
+            String plan = req.queryParams("plan_materia");
+            String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+            String obligatoriaParam = req.queryParams("es_obligatoria");
+            int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+
+            if (Materia.findFirst("codigo_materia = ?", codigoStr) != null) {
+                res.redirect("/materias?error=" + URLEncoder.encode("El código de materia ya existe.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            Materia m = new Materia();
+            m.set("codigo_materia", Integer.valueOf(codigoStr));
+            m.set("nombre", nombre);
+            m.set("plan_materia", plan);
+            m.set("es_obligatoria", esObligatoria);
+            m.saveIt();
+
+            // Lógica para guardar correlativas (Requiere que el modelo Materia tenga este método)
+            if (correlativasSeleccionadas != null) {
+                for (String idCorr : correlativasSeleccionadas) {
+                    m.agregarCorrelativa(Integer.valueOf(idCorr));
+                }
+            }
+
+            res.redirect("/materias?message=" + URLEncoder.encode("Materia creada con éxito.", StandardCharsets.UTF_8));
+            return "";
+        });
+
+        // GET: Renderizar formulario para Modificar una materia existente
+        get("/materias/edit/:id", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            Materia m = Materia.findById(req.params(":id"));
+            if (m == null) {
+                res.redirect("/materias?error=Materia no encontrada");
+                return null;
+            }
+            model.put("materia", m.toMap());
+            model.put("todasMaterias", Materia.where("id != ?", m.getId()).toMaps());
+            return new ModelAndView(model, "materia_edit.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Procesar y aplicar la Modificación de datos
+        post("/materias/edit/:id", (req, res) -> {
+            Materia m = Materia.findById(req.params(":id"));
+            if (m != null) {
+                String obligatoriaParam = req.queryParams("es_obligatoria");
+                int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+                m.set("nombre", req.queryParams("nombre"));
+                m.set("plan_materia", req.queryParams("plan_materia"));
+                m.set("es_obligatoria", esObligatoria);
+                m.saveIt();
+
+                m.borrarCorrelatividades();
+                String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+                if (correlativasSeleccionadas != null) {
+                    for (String idCorr : correlativasSeleccionadas) {
+                        m.agregarCorrelativa(Integer.valueOf(idCorr));
+                    }
+                }
+                res.redirect("/materias?message=" + URLEncoder.encode("Materia modificada correctamente.", StandardCharsets.UTF_8));
+            } else {
+                res.redirect("/materias?error=Error al modificar.");
+            }
+            return "";
+        });
+
+        // GET: Procesar la Baja de una materia
+        get("/materias/delete/:id", (req, res) -> {
+            Materia m = Materia.findById(req.params(":id"));
+            if (m != null) {
+                m.borrarCorrelatividades();
+                m.delete();
+                res.redirect("/materias?message=" + URLEncoder.encode("Materia y correlatividades eliminadas.", StandardCharsets.UTF_8));
+            } else {
+                res.redirect("/materias?error=No se pudo eliminar la materia.");
+            }
+            return "";
+        });
     } // Fin del método main
 } // Fin de la clase App
