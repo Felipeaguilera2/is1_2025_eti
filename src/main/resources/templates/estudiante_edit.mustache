@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modificar Estudiante - UNRC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+    <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+        
+        <div class="pb-4 border-b mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Modificar Identificación del Alumno</h1>
+            <p class="text-xs text-gray-500 mt-1">Estás editando el código académico único asignado a la persona.</p>
+        </div>
+
+        {{#estudiante}}
+        <form action="/estudiantes/edit/{{id}}" method="POST" class="space-y-5">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase">Estudiante</label>
+                <input type="text" value="{{nombre}} {{apellido}}" disabled 
+                       class="w-full mt-1 p-2.5 border rounded-lg bg-gray-100 text-gray-700 font-medium cursor-not-allowed">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase">Documento de Identidad (Inmutable)</label>
+                <input type="text" value="{{dni}}" disabled 
+                       class="w-full mt-1 p-2.5 border rounded-lg bg-gray-100 text-gray-500 font-mono cursor-not-allowed">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Código de Estudiante (Legajo)</label>
+                <input type="number" name="cod_estudiante" value="{{cod_estudiante}}" required 
+                       class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm">
+            </div>
+
+            <div class="flex items-center justify-end space-x-3 border-t pt-4 mt-6">
+                <a href="/estudiantes" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
+                    Cancelar
+                </a>
+                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-5 py-2.5 rounded-lg shadow transition duration-150">
+                    Guardar Cambios
+                </button>
+            </div>
+        </form>
+        {{/estudiante}}
+    </div>
+</body>
+</html>

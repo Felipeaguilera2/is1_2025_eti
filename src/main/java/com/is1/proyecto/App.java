@@ -1,32 +1,31 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
 import java.io.InputStream;
-import java.util.Scanner;
-
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-// Importaciones necesarias para la aplicación Spark
-import com.fasterxml.jackson.databind.ObjectMapper; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import static spark.Spark.*; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import java.util.HashMap;
+import java.util.Map; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import java.util.Scanner; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
 
-// Importaciones específicas para ActiveJDBC (ORM para la base de datos)
 import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
 import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
 
-// Importaciones de Spark para renderizado de plantillas
-import spark.ModelAndView; // Representa un modelo de datos y el nombre de la vista a renderizar.
-import spark.template.mustache.MustacheTemplateEngine; // Motor de plantillas Mustache para Spark.
+import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
+import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.models.Carrera; // Para crear mapas de datos (modelos para las plantillas).
+import com.is1.proyecto.models.Estudiante; // Interfaz Map, utilizada para Map.of() o HashMap.
+import com.is1.proyecto.models.Persona; // Clase Singleton para la configuración de la base de datos.
+import com.is1.proyecto.models.Profesor;
+import com.is1.proyecto.models.User;
 
-// Importaciones estándar de Java
-import java.util.HashMap; // Para crear mapas de datos (modelos para las plantillas).
-import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
-
-// Importaciones de clases del proyecto
-import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.Persona;
-import com.is1.proyecto.models.Profesor; 
-import com.is1.proyecto.models.User; // Modelo de Act iveJDBC que representa la tabla 'users'.
-import com.is1.proyecto.models.Carrera; // Modelo de Act iveJDBC que representa la tabla 'users'.
+import spark.ModelAndView;
+import static spark.Spark.after; // Modelo de Act iveJDBC que representa la tabla 'users'.
+import static spark.Spark.before; // Modelo de Act iveJDBC que representa la tabla 'users'.
+import static spark.Spark.get;
+import static spark.Spark.halt;
+import static spark.Spark.port;
+import static spark.Spark.post;
+import spark.template.mustache.MustacheTemplateEngine;
 
 
 /**
@@ -540,5 +539,129 @@ public class App {
             return new ModelAndView(model, "carreras_list.mustache");
         }, new MustacheTemplateEngine());
 
+        
+        // GET: Listar todos los estudiantes y mostrar pantalla de gestión
+        get("/estudiantes", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            // Traemos los estudiantes unidos con sus datos personales (Nombre, Apellido)
+            String sql = "SELECT e.id, e.dni, e.cod_estudiante, p.nombre, p.apellido " +
+                         "FROM estudiante e JOIN person p ON e.dni = p.dni";
+            model.put("estudiantes", org.javalite.activejdbc.Base.findAll(sql));
+            
+            String error = req.queryParams("error");
+            if (error != null) model.put("errorMessage", error);
+            String msg = req.queryParams("message");
+            if (msg != null) model.put("successMessage", msg);
+
+            return new ModelAndView(model, "estudiante_gestion.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Dar de alta un nuevo Estudiante (Vincular Persona existente)
+        post("/estudiantes/new", (req, res) -> {
+            String dniStr = req.queryParams("dni");
+            String codEstudianteStr = req.queryParams("cod_estudiante");
+
+            if (dniStr == null || dniStr.isEmpty() || codEstudianteStr == null || codEstudianteStr.isEmpty()) {
+                res.redirect("/estudiantes?error=" + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            try {
+                // Criterio de Aceptación: Notificación si el DNI no está registrado como Persona
+                Persona persona = Persona.findFirst("dni = ?", dniStr);
+                if (persona == null) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("El DNI ingresado no pertenece a ninguna Persona cargada. Regístrela primero.", StandardCharsets.UTF_8));
+                    return "";
+                }
+
+                // Criterio de Aceptación: Validación de duplicidad (DNI ya es estudiante)
+                if (Estudiante.findFirst("dni = ?", dniStr) != null) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("El estudiante con ese DNI ya se encuentra registrado.", StandardCharsets.UTF_8));
+                    return "";
+                }
+
+                // Validación de código de estudiante duplicado
+                if (Estudiante.findFirst("cod_estudiante = ?", codEstudianteStr) != null) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("El código de estudiante ya está asignado a otro alumno.", StandardCharsets.UTF_8));
+                    return "";
+                }
+
+                // Registro Exitoso
+                Estudiante est = new Estudiante();
+                est.setDni(Integer.parseInt(dniStr));
+                est.setCodEstudiante(Integer.parseInt(codEstudianteStr));
+                est.saveIt();
+
+                res.redirect("/estudiantes?message=" + URLEncoder.encode("Estudiante dado de alta con éxito.", StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                res.redirect("/estudiantes?error=" + URLEncoder.encode("Error interno del sistema al procesar el alta.", StandardCharsets.UTF_8));
+            }
+            return "";
+        });
+
+        // GET: Formulario para Modificar un estudiante
+        get("/estudiantes/edit/:id", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            Estudiante est = Estudiante.findById(req.params(":id"));
+            if (est == null) {
+                res.redirect("/estudiantes?error=Estudiante no encontrado.");
+                return null;
+            }
+            
+            // Buscamos los datos del estudiante y de la persona vinculada
+            Persona p = Persona.findFirst("dni = ?", est.getDni());
+            model.put("estudiante", est.toMap());
+            if (p != null) {
+                model.put("nombre", p.getString("nombre"));
+                model.put("apellido", p.getString("apellido"));
+            }
+            return new ModelAndView(model, "estudiante_edit.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Procesar la Modificación de datos
+        post("/estudiantes/edit/:id", (req, res) -> {
+            Estudiante est = Estudiante.findById(req.params(":id"));
+            String nuevoCodStr = req.queryParams("cod_estudiante");
+
+            if (est != null && nuevoCodStr != null) {
+                try {
+                    // Validar que el nuevo código no esté duplicado en otro estudiante
+                    Estudiante duplicado = Estudiante.findFirst("cod_estudiante = ? AND id != ?", nuevoCodStr, est.getId());
+                    if (duplicado != null) {
+                        res.redirect("/estudiantes?error=" + URLEncoder.encode("Ese código de estudiante ya se encuentra en uso.", StandardCharsets.UTF_8));
+                        return "";
+                    }
+
+                    est.setCodEstudiante(Integer.parseInt(nuevoCodStr));
+                    est.saveIt();
+                    res.redirect("/estudiantes?message=" + URLEncoder.encode("Datos del estudiante modificados correctamente.", StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("Error al modificar el registro.", StandardCharsets.UTF_8));
+                }
+            } else {
+                res.redirect("/estudiantes?error=Registro no encontrado.");
+            }
+            return "";
+        });
+
+        // GET: Procesar la Baja de un estudiante
+        get("/estudiantes/delete/:id", (req, res) -> {
+            Estudiante est = Estudiante.findById(req.params(":id"));
+            if (est != null) {
+                // Criterio de Aceptación: Impedir borrado con vínculos activos
+                if (est.tieneVinculosAcademicos()) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("No se puede eliminar el estudiante porque posee inscripciones o historial académico activo.", StandardCharsets.UTF_8));
+                } else {
+                    // Criterio de Aceptación: Baja sin vínculos permitida
+                    est.delete();
+                    res.redirect("/estudiantes?message=" + URLEncoder.encode("Estudiante eliminado del sistema correctamente.", StandardCharsets.UTF_8));
+                }
+            } else {
+                res.redirect("/estudiantes?error=No se pudo encontrar el estudiante a eliminar.");
+            }
+            return "";
+        });
+        
     } // Fin del método main
 } // Fin de la clase App
