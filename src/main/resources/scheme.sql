@@ -57,4 +57,14 @@ CREATE TABLE carrera (
     nombre VARCHAR(100) NOT NULL
 );
 
+<<<<<<< HEAD
+-- Crea la tabla 'estudiante' (entidad hija de person)
+CREATE TABLE estudiante (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dni INTEGER NOT NULL UNIQUE,
+    cod_estudiante INTEGER NOT NULL UNIQUE,
+    FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE
+);
+=======
 
+>>>>>>> a297430a054b39de3d947c1757d04dd6f4ac5da9
