@@ -26,6 +26,8 @@ replay_pid*
 # Ignorados específicos del proyecto
 # =========================
 target/
-db/dev.db
+db/*
+!db/.gitkeep
+*.db
 *.sqlite
 dependency-reduced-pom.xml
