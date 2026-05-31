@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS person;
 DROP TABLE IF EXISTS carrera;
 DROP TABLE IF EXISTS materia;
 DROP TABLE IF EXISTS correlativas;
+DROP TABLE IF EXISTS estudiante;
 
 
 
@@ -57,7 +58,7 @@ CREATE TABLE carrera (
     nombre VARCHAR(100) NOT NULL
 );
 
-<<<<<<< HEAD
+
 -- Crea la tabla 'estudiante' (entidad hija de person)
 CREATE TABLE estudiante (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +66,4 @@ CREATE TABLE estudiante (
     cod_estudiante INTEGER NOT NULL UNIQUE,
     FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE
 );
-=======
 
->>>>>>> a297430a054b39de3d947c1757d04dd6f4ac5da9
