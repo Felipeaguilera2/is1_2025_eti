@@ -72,6 +72,7 @@ public class App {
         
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
+       // --- Filtro 'before' corregido para evitar fugas de conexión (Connection Leaks) ---
         before((req, res) -> {
             try {
                 // Abre una conexión a la base de datos utilizando las credenciales del singleton.
@@ -79,17 +80,16 @@ public class App {
                 System.out.println(req.url());
 
             } catch (Exception e) {
-                // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
-                // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
                 halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
             }
             String path = req.pathInfo();
             
-            // Rutas públicas
+            // Rutas públicas (Se agrega de forma explícita el favicon para que no cause rebotes)
             boolean esRutaPublica = path.equals("/") || 
                                     path.equals("/login") || 
                                     path.equals("/logout") || 
+                                    path.equals("/favicon.ico") || // <--- CLAVE PARA LOS NAVEGADORES
                                     path.startsWith("/user/new") || 
                                     path.startsWith("/user/create");
 
@@ -99,13 +99,19 @@ public class App {
                 
                 // Si la sesión no existe o expiró
                 if (loggedIn == null || !loggedIn) {
-                    // Redirreción a login con mensaje de error
+                    
+                    // CORRECCIÓN CRÍTICA: Cerramos la conexión de ActiveJDBC ANTES del halt
+                    if (Base.hasConnection()) {
+                        Base.close();
+                    }
+                    
+                    // Redirección a login con mensaje de error
                     res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
-                    //Mata la ejecución para que no se muestre la pantalla protegida
+                    
+                    // Mata la ejecución de forma segura sin dejar colgada la DB
                     halt(); 
                 }
             }
-
         });
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
@@ -254,7 +260,7 @@ public class App {
 
                 res.status(201); // Código de estado HTTP 201 (Created) para una creación exitosa.
                 // Redirige al formulario de creación con un mensaje de éxito.
-                res.redirect("/user/create?message=Cuenta creada exitosamente para " + name + "!");
+                res.redirect("/?message=Cuenta creada exitosamente para " + name + "!");
                 return ""; // Retorna una cadena vacía.
 
             } catch (Exception e) {
