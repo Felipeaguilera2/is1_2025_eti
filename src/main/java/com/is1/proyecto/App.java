@@ -72,7 +72,6 @@ public class App {
         
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
-       // --- Filtro 'before' corregido para evitar fugas de conexión (Connection Leaks) ---
         before((req, res) -> {
             try {
                 // Abre una conexión a la base de datos utilizando las credenciales del singleton.
@@ -80,16 +79,17 @@ public class App {
                 System.out.println(req.url());
 
             } catch (Exception e) {
+                // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
+                // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
                 halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
             }
             String path = req.pathInfo();
             
-            // Rutas públicas (Se agrega de forma explícita el favicon para que no cause rebotes)
+            // Rutas públicas
             boolean esRutaPublica = path.equals("/") || 
                                     path.equals("/login") || 
                                     path.equals("/logout") || 
-                                    path.equals("/favicon.ico") || // <--- CLAVE PARA LOS NAVEGADORES
                                     path.startsWith("/user/new") || 
                                     path.startsWith("/user/create");
 
@@ -99,19 +99,13 @@ public class App {
                 
                 // Si la sesión no existe o expiró
                 if (loggedIn == null || !loggedIn) {
-                    
-                    // CORRECCIÓN CRÍTICA: Cerramos la conexión de ActiveJDBC ANTES del halt
-                    if (Base.hasConnection()) {
-                        Base.close();
-                    }
-                    
-                    // Redirección a login con mensaje de error
+                    // Redirreción a login con mensaje de error
                     res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
-                    
-                    // Mata la ejecución de forma segura sin dejar colgada la DB
+                    //Mata la ejecución para que no se muestre la pantalla protegida
                     halt(); 
                 }
             }
+
         });
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
