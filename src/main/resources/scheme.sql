@@ -1,11 +1,12 @@
--- Elimina las tablas si ya existen para asegurar un inicio limpioselec
+-- Elimina las tablas si ya existen para asegurar un inicio limpio
+DROP TABLE IF EXISTS cursadas;
+DROP TABLE IF EXISTS estudiante;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS profesor; 
 DROP TABLE IF EXISTS person;
 DROP TABLE IF EXISTS carrera;
 DROP TABLE IF EXISTS materia;
 DROP TABLE IF EXISTS correlativas;
-
 
 
 -- Crea la tabla 'person' (entidad padre)
@@ -57,7 +58,6 @@ CREATE TABLE carrera (
     nombre VARCHAR(100) NOT NULL
 );
 
-<<<<<<< HEAD
 -- Crea la tabla 'estudiante' (entidad hija de person)
 CREATE TABLE estudiante (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +65,15 @@ CREATE TABLE estudiante (
     cod_estudiante INTEGER NOT NULL UNIQUE,
     FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE
 );
-=======
 
->>>>>>> a297430a054b39de3d947c1757d04dd6f4ac5da9
+-- Tabla de asociación para la Inscripción a Materias (Cursadas)
+CREATE TABLE cursadas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    estudiante_id INTEGER NOT NULL,
+    materia_id INTEGER NOT NULL,
+    periodo TEXT NOT NULL,
+    FOREIGN KEY (estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE,
+    FOREIGN KEY (materia_id) REFERENCES materias(id) ON DELETE CASCADE,
+    UNIQUE(estudiante_id, materia_id, periodo) -- Criterio: Evita inscribirse dos veces a la misma materia en el mismo periodo
+);
+

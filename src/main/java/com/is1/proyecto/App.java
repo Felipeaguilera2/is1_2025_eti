@@ -13,11 +13,12 @@ import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contrase
 import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
 import com.is1.proyecto.models.Carrera; // Para crear mapas de datos (modelos para las plantillas).
-import com.is1.proyecto.models.Estudiante; // Interfaz Map, utilizada para Map.of() o HashMap.
-import com.is1.proyecto.models.Materia; // Clase Singleton para la configuración de la base de datos.
+import com.is1.proyecto.models.Cursada; // Interfaz Map, utilizada para Map.of() o HashMap.
+import com.is1.proyecto.models.Estudiante; // Clase Singleton para la configuración de la base de datos.
+import com.is1.proyecto.models.Materia;
 import com.is1.proyecto.models.Persona;
-import com.is1.proyecto.models.Profesor; 
-import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import com.is1.proyecto.models.Profesor; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import com.is1.proyecto.models.User;
 
 import spark.ModelAndView; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
 import static spark.Spark.after; //Modelo de ActiveJDBC que representa la tabla 'materia'
@@ -1011,6 +1012,74 @@ public class App {
             return "";
         
         });
-    
+        get("/inscripciones/:estudiante_id", (req, res) -> {
+            Map<String, Object> viewIds = new HashMap<>();
+            String estudianteId = req.params(":estudiante_id");
+
+            // 1. Obtener los datos del estudiante cruzando con Persona para el nombre
+            String sqlEstudiante = "SELECT e.id, e.carrera_id, p.nombre, p.apellido " +
+                                   "FROM estudiante e JOIN person p ON e.dni = p.dni WHERE e.id = ?";
+            var estudiantes = org.javalite.activejdbc.Base.findAll(sqlEstudiante, estudianteId);
+
+            if (estudiantes.isEmpty()) {
+                res.redirect("/estudiantes?error=Estudiante+no+encontrado");
+                return null;
+            }
+            Map<String, Object> estudiante = estudiantes.get(0);
+            viewIds.put("estudiante", estudiante);
+
+            // 2. CRITERIO DE ACEPTACIÓN: Traer SOLO las materias que pertenecen al plan de su carrera
+            Object carreraId = estudiante.get("carrera_id");
+            var materiasFiltradas = Materia.where("carrera_id = ?", carreraId).toMaps();
+            viewIds.put("materiasDisponibles", materiasFiltradas);
+
+            // 3. Traer las materias en las que ya se inscribió
+            String sqlCursadas = "SELECT c.id, m.nombre AS materia_nombre, c.periodo " +
+                                 "FROM cursadas c JOIN materia m ON c.materia_id = m.id " +
+                                 "WHERE c.estudiante_id = ?";
+            var inscripcionesActuales = org.javalite.activejdbc.Base.findAll(sqlCursadas, estudianteId);
+            viewIds.put("inscripciones", inscripcionesActuales);
+
+            // Mensajes de feedback
+            if (req.queryParams("error") != null) viewIds.put("errorMessage", req.queryParams("error"));
+            if (req.queryParams("message") != null) viewIds.put("successMessage", req.queryParams("message"));
+
+            return new ModelAndView(viewIds, "inscripcion_form.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Guardar el registro de la cursada
+        post("/inscripciones/new", (req, res) -> {
+            String estudianteId = req.queryParams("estudiante_id");
+            String materiaId = req.queryParams("materia_id");
+            String periodo = req.queryParams("periodo");
+
+            if (estudianteId == null || materiaId == null || periodo == null || periodo.isEmpty()) {
+                res.redirect("/inscripciones/" + estudianteId + "?error=Todos+los+campos+son+obligatorios");
+                return "";
+            }
+
+            try {
+                // Validación extra: verificar si ya existe la inscripción para ese período
+                Cursada existente = Cursada.findFirst("estudiante_id = ? AND materia_id = ? AND periodo = ?", 
+                                                    estudianteId, materiaId, periodo);
+                if (existente != null) {
+                    res.redirect("/inscripciones/" + estudianteId + "?error=Ya+estas+inscripto+a+esta+materia+en+este+periodo");
+                    return "";
+                }
+
+                // Guardar relación
+                Cursada nuevaInscripcion = new Cursada();
+                nuevaInscripcion.set("estudiante_id", Integer.parseInt(estudianteId));
+                nuevaInscripcion.set("materia_id", Integer.parseInt(materiaId));
+                nuevaInscripcion.set("periodo", periodo);
+                nuevaInscripcion.saveIt();
+
+                res.redirect("/inscripciones/" + estudianteId + "?message=Inscripcion+realizada+con+exito");
+            } catch (Exception e) {
+                res.redirect("/inscripciones/" + estudianteId + "?error=Error+al+procesar+la+inscripcion");
+            }
+            return "";
+        });
+
     } // Fin del método main
 } // Fin de la clase App

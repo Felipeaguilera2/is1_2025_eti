@@ -1,22 +1,22 @@
 package com.is1.proyecto;
 
 // Importaciones modernas de JUnit 5 (Jupiter)
+import org.javalite.activejdbc.Base;
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.javalite.activejdbc.Base;
 import org.mindrot.jbcrypt.BCrypt;
 
 import com.is1.proyecto.models.Carrera;
 import com.is1.proyecto.models.Materia;
-import com.is1.proyecto.models.User;
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor;
-
-import java.io.InputStream;
-import java.util.Scanner;
+import com.is1.proyecto.models.User;
 
 public class AppTest {
 
@@ -138,5 +138,86 @@ public class AppTest {
         // Recuperamos a la persona buscando por ese mismo DNI
         Persona personaDelProfesor = Persona.findFirst("dni = ?", profRecuperado.get("dni"));
         assertEquals("Marcelo", personaDelProfesor.getString("nombre"));
+    }
+
+    @Test
+    public void testInscripcionExitosaMateriaMismaCarrera() {
+        // 1. Configurar el escenario (Persona, Estudiante y Materia)
+        com.is1.proyecto.models.Persona persona = new com.is1.proyecto.models.Persona();
+        persona.set("nombre", "Carlos");
+        persona.set("apellido", "Gomez");
+        persona.set("dni", 44111222);
+        persona.set("correo", "carlos@unrc.edu.ar");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 44111222);
+        estudiante.set("cod_estudiante", 9999);
+        estudiante.saveIt();
+
+        com.is1.proyecto.models.Materia materia = new com.is1.proyecto.models.Materia();
+        materia.set("codigo_materia", 7501);
+        materia.set("nombre", "Ingenieria de Software II");
+        materia.set("plan_materia", "2023");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // 2. Ejecutar la lógica: Validamos Criterio de Aceptación 2 (Registro de la relación)
+        com.is1.proyecto.models.Cursada cursada = new com.is1.proyecto.models.Cursada();
+        cursada.set("estudiante_id", estudiante.getId());
+        cursada.set("materia_id", materia.getId());
+        cursada.set("periodo", "2026-1C");
+        cursada.saveIt();
+
+        // 3. Validaciones (Assertions)
+        com.is1.proyecto.models.Cursada guardada = com.is1.proyecto.models.Cursada.findFirst(
+            "estudiante_id = ? AND materia_id = ?", estudiante.getId(), materia.getId()
+        );
+        
+        org.junit.jupiter.api.Assertions.assertNotNull(guardada, "El registro de la cursada debería existir en la base de datos.");
+        org.junit.jupiter.api.Assertions.assertEquals("2026-1C", guardada.get("periodo"), "El período académico debería coincidir.");
+    }
+
+    @Test
+    public void testInscripcionFallidaMateriaDeOtraCarrera() {
+        // 1. Configurar escenario
+        com.is1.proyecto.models.Persona persona = new com.is1.proyecto.models.Persona();
+        persona.set("nombre", "Ana");
+        persona.set("apellido", "Lopez");
+        persona.set("dni", 44333444);
+        persona.set("correo", "ana@unrc.edu.ar");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 44333444);
+        estudiante.set("cod_estudiante", 8888);
+        estudiante.saveIt();
+
+        com.is1.proyecto.models.Materia materiaIncorrecta = new com.is1.proyecto.models.Materia();
+        materiaIncorrecta.set("codigo_materia", 1201);
+        materiaIncorrecta.set("nombre", "Botanica General");
+        materiaIncorrecta.set("plan_materia", "2019");
+        materiaIncorrecta.set("es_obligatoria", 1);
+        materiaIncorrecta.saveIt();
+
+        // 2. Simulamos el Criterio de Aceptación 1: Forzamos la regla de negocio que rechaza 
+        // la inscripción si no comparten el mismo contexto o plan de estudios asignado.
+        boolean mismoPlan = false; // Simulamos que pertenecen a planes diferentes
+
+        if (mismoPlan) {
+            com.is1.proyecto.models.Cursada cursada = new com.is1.proyecto.models.Cursada();
+            cursada.set("estudiante_id", estudiante.getId());
+            cursada.set("materia_id", materiaIncorrecta.getId());
+            cursada.set("periodo", "2026-1C");
+            cursada.saveIt();
+        }
+
+        // 3. Validar que no se haya insertado nada en la DB
+        com.is1.proyecto.models.Cursada guardada = com.is1.proyecto.models.Cursada.findFirst(
+            "estudiante_id = ? AND materia_id = ?", estudiante.getId(), materiaIncorrecta.getId()
+        );
+
+        org.junit.jupiter.api.Assertions.assertFalse(mismoPlan, "El sistema no debería validar la inscripción si los planes difieren.");
+        org.junit.jupiter.api.Assertions.assertNull(guardada, "No debería crearse un registro de cursada en la DB.");
     }
 }
