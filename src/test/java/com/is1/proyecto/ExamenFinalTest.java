@@ -22,6 +22,16 @@ public class ExamenFinalTest {
     public void setUp() {
         // Usamos una base de datos exclusiva para no pisar los datos de desarrollo web
         Base.open("org.sqlite.JDBC", "jdbc:sqlite:universidad_test.db", "", "");
+        try {
+            java.io.InputStream is = ExamenFinalTest.class.getResourceAsStream("/scheme.sql");
+            if (is != null) {
+                java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+                String sql = s.hasNext() ? s.next() : "";
+                Base.exec(sql);
+            }
+        } catch (Exception e) {
+            // Ignored if already initialized
+        }
         Base.openTransaction(); 
     }
 

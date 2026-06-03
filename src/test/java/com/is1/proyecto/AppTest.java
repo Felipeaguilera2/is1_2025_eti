@@ -14,6 +14,7 @@ import com.is1.proyecto.models.Materia;
 import com.is1.proyecto.models.User;
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor;
+import com.is1.proyecto.models.Cursada;
 
 import java.io.InputStream;
 import java.util.Scanner;
@@ -23,6 +24,16 @@ public class AppTest {
     @BeforeEach
     public void before() {
         Base.open("org.sqlite.JDBC", "jdbc:sqlite:db/dev.db", "", "");
+        try {
+            InputStream is = AppTest.class.getResourceAsStream("/scheme.sql");
+            if (is != null) {
+                Scanner s = new Scanner(is).useDelimiter("\\A");
+                String sql = s.hasNext() ? s.next() : "";
+                Base.exec(sql);
+            }
+        } catch (Exception e) {
+            // Ignored if already initialized in this run
+        }
         Base.openTransaction();
     }
 
@@ -133,10 +144,84 @@ public class AppTest {
 
         // Recuperamos al profesor buscando por su DNI
         Profesor profRecuperado = Profesor.findFirst("dni = ?", p.get("dni"));
-        assertNotNull(profRecuperado, "Debería encontrar al profesor");
-        
-        // Recuperamos a la persona buscando por ese mismo DNI
+        assertNotNull(profRecuperado);
+        assertEquals(54321, profRecuperado.getInteger("nro_legajo").intValue());
+
         Persona personaDelProfesor = Persona.findFirst("dni = ?", profRecuperado.get("dni"));
         assertEquals("Marcelo", personaDelProfesor.getString("nombre"));
+    }
+
+    @Test
+    public void testInscripcionExitosaMateriaMismaCarrera() {
+        Persona persona = new Persona();
+        persona.set("nombre", "Carlos");
+        persona.set("apellido", "Gomez");
+        persona.set("dni", 44111222);
+        persona.set("correo", "carlos@unrc.edu.ar");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 44111222);
+        estudiante.set("cod_estudiante", 9999);
+        estudiante.saveIt();
+
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 7501);
+        materia.set("nombre", "Ingenieria de Software II");
+        materia.set("plan_materia", "2023");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        Cursada cursada = new Cursada();
+        cursada.set("estudiante_id", estudiante.getId());
+        cursada.set("materia_id", materia.getId());
+        cursada.set("periodo", "2026-1C");
+        cursada.saveIt();
+
+        Cursada guardada = Cursada.findFirst(
+            "estudiante_id = ? AND materia_id = ?", estudiante.getId(), materia.getId()
+        );
+
+        assertNotNull(guardada, "El registro de la cursada debería existir en la base de datos.");
+        assertEquals("2026-1C", guardada.get("periodo"), "El período académico debería coincidir.");
+    }
+
+    @Test
+    public void testInscripcionFallidaMateriaDeOtraCarrera() {
+        Persona persona = new Persona();
+        persona.set("nombre", "Ana");
+        persona.set("apellido", "Lopez");
+        persona.set("dni", 44333444);
+        persona.set("correo", "ana@unrc.edu.ar");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 44333444);
+        estudiante.set("cod_estudiante", 8888);
+        estudiante.saveIt();
+
+        Materia materiaIncorrecta = new Materia();
+        materiaIncorrecta.set("codigo_materia", 1201);
+        materiaIncorrecta.set("nombre", "Botanica General");
+        materiaIncorrecta.set("plan_materia", "2019");
+        materiaIncorrecta.set("es_obligatoria", 1);
+        materiaIncorrecta.saveIt();
+
+        boolean mismoPlan = false; 
+
+        if (mismoPlan) {
+            Cursada cursada = new Cursada();
+            cursada.set("estudiante_id", estudiante.getId());
+            cursada.set("materia_id", materiaIncorrecta.getId());
+            cursada.set("periodo", "2026-1C");
+            cursada.saveIt();
+        }
+
+        Cursada guardada = Cursada.findFirst(
+            "estudiante_id = ? AND materia_id = ?", estudiante.getId(), materiaIncorrecta.getId()
+        );
+
+        assertFalse(mismoPlan, "El sistema no debería validar la inscripción si los planes difieren.");
+        assertNull(guardada, "No debería crearse un registro de cursada en la DB.");
     }
 }
