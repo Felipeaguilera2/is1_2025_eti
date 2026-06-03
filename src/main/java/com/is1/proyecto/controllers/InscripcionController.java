@@ -81,6 +81,14 @@ public class InscripcionController {
                 return "";
             }
 
+            // Validar correlativas
+            int estId = Integer.parseInt(estudianteId);
+            int matId = Integer.parseInt(materiaId);
+            if (!com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estId, matId)) {
+                res.redirect("/inscripciones/" + estudianteId + "?error=" + URLEncoder.encode("No cumple con las correlatividades requeridas para cursar esta materia.", StandardCharsets.UTF_8));
+                return "";
+            }
+
             // Guardar relación
             Cursada nuevaInscripcion = new Cursada();
             nuevaInscripcion.set("estudiante_id", Integer.parseInt(estudianteId));

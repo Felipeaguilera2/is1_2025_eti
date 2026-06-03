@@ -63,6 +63,9 @@ public class MateriaController {
                 }
             }
 
+            // Recargar en memoria el grafo de correlatividades
+            com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
             res.redirect("/materias?message=" + URLEncoder.encode("Materia creada con éxito.", StandardCharsets.UTF_8));
         } catch (Exception e) {
             System.err.println("Error al crear materia: " + e.getMessage());
@@ -79,7 +82,27 @@ public class MateriaController {
             return null;
         }
         model.put("materia", m.toMap());
-        model.put("todasMaterias", Materia.where("id != ?", m.getId()).toMaps());
+
+        java.util.List<Materia> correlativas = m.getCorrelativas();
+        java.util.Set<Integer> correlativasIds = new java.util.HashSet<>();
+        for (Materia c : correlativas) {
+            correlativasIds.add(((Number) c.getId()).intValue());
+        }
+
+        java.util.List<java.util.Map<String, Object>> todasMateriasMaps = Materia.where("id != ?", m.getId()).toMaps();
+        for (java.util.Map<String, Object> map : todasMateriasMaps) {
+            int id = ((Number) map.get("id")).intValue();
+            if (correlativasIds.contains(id)) {
+                map.put("checked", true);
+            }
+        }
+        model.put("todasMaterias", todasMateriasMaps);
+
+        String error = req.queryParams("error");
+        if (error != null) {
+            model.put("errorMessage", error);
+        }
+
         return new ModelAndView(model, "materia_edit.mustache");
     }
 
@@ -89,18 +112,36 @@ public class MateriaController {
             try {
                 String obligatoriaParam = req.queryParams("es_obligatoria");
                 int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+                
+                String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+                int thisMateriaId = ((Number) m.getId()).intValue();
+
+                // Verificar que no se generen ciclos de correlatividades
+                if (correlativasSeleccionadas != null) {
+                    for (String idCorr : correlativasSeleccionadas) {
+                        int prospectiveCorrelativaId = Integer.parseInt(idCorr);
+                        if (com.is1.proyecto.CorrelatividadesManager.getInstance().checkCycle(thisMateriaId, prospectiveCorrelativaId)) {
+                            res.redirect("/materias/edit/" + m.getId() + "?error=" + URLEncoder.encode("Error: Agregar esta correlativa genera una dependencia circular.", StandardCharsets.UTF_8));
+                            return "";
+                        }
+                    }
+                }
+
                 m.set("nombre", req.queryParams("nombre"));
                 m.set("plan_materia", req.queryParams("plan_materia"));
                 m.set("es_obligatoria", esObligatoria);
                 m.saveIt();
 
                 m.borrarCorrelatividades();
-                String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
                 if (correlativasSeleccionadas != null) {
                     for (String idCorr : correlativasSeleccionadas) {
                         m.agregarCorrelativa(Integer.valueOf(idCorr));
                     }
                 }
+
+                // Recargar el manager de correlativas en memoria
+                com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
                 res.redirect("/materias?message=" + URLEncoder.encode("Materia modificada correctamente.", StandardCharsets.UTF_8));
             } catch (Exception e) {
                 System.err.println("Error al editar materia: " + e.getMessage());
@@ -118,6 +159,10 @@ public class MateriaController {
             try {
                 m.borrarCorrelatividades();
                 m.delete();
+                
+                // Recargar el manager de correlativas en memoria
+                com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
                 res.redirect("/materias?message=" + URLEncoder.encode("Materia y correlatividades eliminadas.", StandardCharsets.UTF_8));
             } catch (Exception e) {
                 System.err.println("Error al borrar materia: " + e.getMessage());

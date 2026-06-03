@@ -41,6 +41,8 @@ public class App {
                 String sql = s.hasNext() ? s.next() : "";
                 Base.exec(sql);
                 System.out.println(">>> BASE DE DATOS INICIALIZADA CON TABLAS <<<");
+                // Inicializar y cargar correlativas en memoria
+                com.is1.proyecto.CorrelatividadesManager.getInstance();
             } else {
                 System.err.println(">>> ERROR: No se encontró scheme.sql <<<");
             }
