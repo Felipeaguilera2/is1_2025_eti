@@ -13,6 +13,7 @@ import com.is1.proyecto.models.ExamenFinal;
 import com.is1.proyecto.models.Materia;
 import com.is1.proyecto.models.Persona;
 import com.is1.proyecto.models.Profesor;
+import com.is1.proyecto.models.DocenteMateria;
 
 import spark.ModelAndView;
 import spark.Request;
@@ -37,6 +38,10 @@ public class ProfesorController {
         
         get("/profesor/cargar-nota", this::showCargarNota, mustache);
         post("/profesor/cargar-nota", this::handleCargarNota);
+
+        // Rutas para asignación de docentes a materias
+        get("/profesor/asignar", this::showAsignarDocente, mustache);
+        post("/profesor/asignar", this::handleAsignarDocente);
     }
 
     private ModelAndView showLogin(Request req, Response res) {
@@ -189,6 +194,14 @@ public class ProfesorController {
             Profesor prof = Profesor.findFirst("nro_legajo = ?", legajo);
 
             if (prof != null) {
+                // Baja de profesor con vínculos: Impedir borrado si está relacionado con una materia en un periodo activo (activo = 1)
+                long activeAssignments = DocenteMateria.count("profesor_dni = ? AND activo = 1", prof.get("dni"));
+                if (activeAssignments > 0) {
+                    String msg = URLEncoder.encode("No se puede eliminar el profesor porque posee materias asignadas en períodos activos.", StandardCharsets.UTF_8);
+                    res.redirect("/profesor/baja?error=" + msg);
+                    return null;
+                }
+
                 Base.exec("DELETE FROM profesor WHERE nro_legajo = ?", legajo);
                 String msg = URLEncoder.encode("La operación ocurrió exitosamente. Profesor eliminado.", StandardCharsets.UTF_8);
                 res.redirect("/profesor/baja?message=" + msg);
@@ -375,5 +388,80 @@ public class ProfesorController {
             res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Error interno al procesar el examen: " + e.getMessage(), StandardCharsets.UTF_8));
             return "";
         }
+    }
+
+    private ModelAndView showAsignarDocente(Request req, Response res) {
+        Map<String, Object> model = new HashMap<>();
+
+        // 1. Obtener lista de profesores con sus datos personales
+        String sqlProfesores = "SELECT pr.dni, pr.nro_legajo, pe.nombre, pe.apellido " +
+                               "FROM profesor pr JOIN person pe ON pr.dni = pe.dni";
+        model.put("profesores", Base.findAll(sqlProfesores));
+
+        // 2. Obtener todas las materias
+        model.put("materias", Materia.findAll().toMaps());
+
+        // 3. Obtener asignaciones actuales
+        String sqlAsignaciones = "SELECT dm.id, pe.nombre, pe.apellido, m.nombre AS materia_nombre, dm.rol, dm.periodo " +
+                                 "FROM docente_materia dm " +
+                                 "JOIN person pe ON dm.profesor_dni = pe.dni " +
+                                 "JOIN materia m ON dm.materia_id = m.id WHERE dm.activo = 1";
+        model.put("asignaciones", Base.findAll(sqlAsignaciones));
+
+        String error = req.queryParams("error");
+        if (error != null) model.put("errorMessage", error);
+        String msg = req.queryParams("message");
+        if (msg != null) model.put("successMessage", msg);
+
+        return new ModelAndView(model, "profesor/asignar_docente.mustache");
+    }
+
+    private String handleAsignarDocente(Request req, Response res) {
+        String profesorDniStr = req.queryParams("profesor_dni");
+        String materiaIdStr = req.queryParams("materia_id");
+        String rol = req.queryParams("rol");
+        String periodo = req.queryParams("periodo");
+
+        if (profesorDniStr == null || profesorDniStr.isEmpty() ||
+            materiaIdStr == null || materiaIdStr.isEmpty() ||
+            rol == null || rol.isEmpty() ||
+            periodo == null || periodo.isEmpty()) {
+            
+            res.redirect("/profesor/asignar?error=" + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
+            return "";
+        }
+
+        try {
+            Integer profesorDni = Integer.valueOf(profesorDniStr);
+            Integer materiaId = Integer.valueOf(materiaIdStr);
+
+            // Criterio de Aceptación: El sistema detecta y arroja un error si ya está asignado
+            DocenteMateria existente = DocenteMateria.findFirst(
+                "profesor_dni = ? AND materia_id = ? AND periodo = ?", 
+                profesorDni, materiaId, periodo
+            );
+
+            if (existente != null) {
+                String errorMsg = "El profesor ya se encuentra asignado a esta materia en este período.";
+                if (!existente.getString("rol").equals(rol)) {
+                    errorMsg = "Conflicto: El profesor ya está asignado a esta materia en este período con el rol de " + existente.getString("rol") + ".";
+                }
+                res.redirect("/profesor/asignar?error=" + URLEncoder.encode(errorMsg, StandardCharsets.UTF_8));
+                return "";
+            }
+
+            DocenteMateria dm = new DocenteMateria();
+            dm.set("profesor_dni", profesorDni);
+            dm.set("materia_id", materiaId);
+            dm.set("rol", rol);
+            dm.set("periodo", periodo);
+            dm.set("activo", 1);
+            dm.saveIt();
+
+            res.redirect("/profesor/asignar?message=" + URLEncoder.encode("Asignación docente realizada con éxito.", StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            res.redirect("/profesor/asignar?error=" + URLEncoder.encode("Error interno al registrar la asignación.", StandardCharsets.UTF_8));
+        }
+        return "";
     }
 }
