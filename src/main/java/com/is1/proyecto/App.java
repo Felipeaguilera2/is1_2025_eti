@@ -13,11 +13,12 @@ import org.mindrot.jbcrypt.BCrypt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.is1.proyecto.config.DBConfigSingleton;
 import com.is1.proyecto.models.Carrera;
-import com.is1.proyecto.models.Estudiante; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import com.is1.proyecto.models.ExamenFinal;
-import com.is1.proyecto.models.Materia; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
-import com.is1.proyecto.models.Persona; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
-import com.is1.proyecto.models.Profesor; // Utilidad para hashear y verificar contraseñas de forma segura.
+import com.is1.proyecto.models.Cursada; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import com.is1.proyecto.models.Estudiante;
+import com.is1.proyecto.models.ExamenFinal; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import com.is1.proyecto.models.Materia; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
+import com.is1.proyecto.models.Persona; // Utilidad para hashear y verificar contraseñas de forma segura.
+import com.is1.proyecto.models.Profesor; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.models.User; // Representa un modelo de datos y el nombre de la vista a renderizar.
 
 import spark.ModelAndView; // Motor de plantillas Mustache para Spark.
@@ -74,42 +75,42 @@ public class App {
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
-before((req, res) -> {
-    String path = req.pathInfo();
+        before((req, res) -> {
+            String path = req.pathInfo();
 
-    // EVITAR EL ERROR DEL FAVICON: Si el navegador pide el icono, cortamos acá
-    // y no abrimos una conexión duplicada en el mismo hilo.
-    if (path.equals("/favicon.ico")) {
-        halt(404); // Le devolvemos un No Encontrado limpio al navegador
-    }
+            // EVITAR EL ERROR DEL FAVICON: Si el navegador pide el icono, cortamos acá
+            // y no abrimos una conexión duplicada en el mismo hilo.
+            if (path.equals("/favicon.ico")) {
+                halt(404); // Le devolvemos un No Encontrado limpio al navegador
+            }
 
-    try {
-        // Abre una conexión a la base de datos utilizando las credenciales del singleton.
-        Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
-        System.out.println(req.url());
+            try {
+                // Abre una conexión a la base de datos utilizando las credenciales del singleton.
+                Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
+                System.out.println(req.url());
 
-    } catch (Exception e) {
-        System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
-        halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
-    }
-    
-    // Rutas públicas
-    boolean esRutaPublica = path.equals("/") || 
-                            path.equals("/login") || 
-                            path.equals("/logout") || 
-                            path.startsWith("/user/new") || 
-                            path.startsWith("/user/create");
+            } catch (Exception e) {
+                System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
+                halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
+            }
+            
+            // Rutas públicas
+            boolean esRutaPublica = path.equals("/") || 
+                                    path.equals("/login") || 
+                                    path.equals("/logout") || 
+                                    path.startsWith("/user/new") || 
+                                    path.startsWith("/user/create");
 
-    // Solicitud de login para rutas privadas
-    if (!esRutaPublica) {
-        Boolean loggedIn = req.session().attribute("loggedIn");
-        
-        if (loggedIn == null || !loggedIn) {
-            res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
-            halt(); 
-        }
-    }
-});
+            // Solicitud de login para rutas privadas
+            if (!esRutaPublica) {
+                Boolean loggedIn = req.session().attribute("loggedIn");
+                
+                if (loggedIn == null || !loggedIn) {
+                    res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+                    halt(); 
+                }
+            }
+        });
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
         // Este filtro se ejecuta después de que cada solicitud HTTP ha sido procesada.
@@ -1014,6 +1015,7 @@ before((req, res) -> {
             return "";
         
         });
+
         // GET: Muestra la pantalla para que el profesor cargue la nota
         get("/profesor/cargar-nota", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -1083,6 +1085,75 @@ before((req, res) -> {
                 return "";
             }
         });
-    
+
+         get("/inscripciones/:estudiante_id", (req, res) -> {
+            Map<String, Object> viewIds = new HashMap<>();
+            String estudianteId = req.params(":estudiante_id");
+
+            // 1. Obtener los datos del estudiante cruzando con Persona para el nombre
+            String sqlEstudiante = "SELECT e.id, e.carrera_id, p.nombre, p.apellido " +
+                                   "FROM estudiante e JOIN person p ON e.dni = p.dni WHERE e.id = ?";
+            var estudiantes = org.javalite.activejdbc.Base.findAll(sqlEstudiante, estudianteId);
+
+            if (estudiantes.isEmpty()) {
+                res.redirect("/estudiantes?error=Estudiante+no+encontrado");
+                return null;
+            }
+            Map<String, Object> estudiante = estudiantes.get(0);
+            viewIds.put("estudiante", estudiante);
+
+            // 2. CRITERIO DE ACEPTACIÓN: Traer SOLO las materias que pertenecen al plan de su carrera
+            Object carreraId = estudiante.get("carrera_id");
+            var materiasFiltradas = Materia.where("carrera_id = ?", carreraId).toMaps();
+            viewIds.put("materiasDisponibles", materiasFiltradas);
+
+            // 3. Traer las materias en las que ya se inscribió
+            String sqlCursadas = "SELECT c.id, m.nombre AS materia_nombre, c.periodo " +
+                                 "FROM cursadas c JOIN materia m ON c.materia_id = m.id " +
+                                 "WHERE c.estudiante_id = ?";
+            var inscripcionesActuales = org.javalite.activejdbc.Base.findAll(sqlCursadas, estudianteId);
+            viewIds.put("inscripciones", inscripcionesActuales);
+
+            // Mensajes de feedback
+            if (req.queryParams("error") != null) viewIds.put("errorMessage", req.queryParams("error"));
+            if (req.queryParams("message") != null) viewIds.put("successMessage", req.queryParams("message"));
+
+            return new ModelAndView(viewIds, "inscripcion_form.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Guardar el registro de la cursada
+        post("/inscripciones/new", (req, res) -> {
+            String estudianteId = req.queryParams("estudiante_id");
+            String materiaId = req.queryParams("materia_id");
+            String periodo = req.queryParams("periodo");
+
+            if (estudianteId == null || materiaId == null || periodo == null || periodo.isEmpty()) {
+                res.redirect("/inscripciones/" + estudianteId + "?error=Todos+los+campos+son+obligatorios");
+                return "";
+            }
+
+            try {
+                // Validación extra: verificar si ya existe la inscripción para ese período
+                Cursada existente = Cursada.findFirst("estudiante_id = ? AND materia_id = ? AND periodo = ?", 
+                                                    estudianteId, materiaId, periodo);
+                if (existente != null) {
+                    res.redirect("/inscripciones/" + estudianteId + "?error=Ya+estas+inscripto+a+esta+materia+en+este+periodo");
+                    return "";
+                }
+
+                // Guardar relación
+                Cursada nuevaInscripcion = new Cursada();
+                nuevaInscripcion.set("estudiante_id", Integer.parseInt(estudianteId));
+                nuevaInscripcion.set("materia_id", Integer.parseInt(materiaId));
+                nuevaInscripcion.set("periodo", periodo);
+                nuevaInscripcion.saveIt();
+
+                res.redirect("/inscripciones/" + estudianteId + "?message=Inscripcion+realizada+con+exito");
+            } catch (Exception e) {
+                res.redirect("/inscripciones/" + estudianteId + "?error=Error+al+procesar+la+inscripcion");
+            }
+            return "";
+        });
+
     } // Fin del método main
 } // Fin de la clase App
