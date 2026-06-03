@@ -1,32 +1,33 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
-import java.io.InputStream;
-import java.net.URLEncoder;
+import java.io.InputStream; //Modelo de ActiveJDBC que representa la tabla 'materia'
+import java.net.URLEncoder; //Modelo de ActiveJDBC que representa la tabla 'materia'
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.Map; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import java.util.Scanner; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import java.util.Map;
+import java.util.Scanner;
 
-import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
-import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
+import org.javalite.activejdbc.Base;
+import org.mindrot.jbcrypt.BCrypt;
 
-import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
-import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
-import com.is1.proyecto.models.Carrera; // Para crear mapas de datos (modelos para las plantillas).
-import com.is1.proyecto.models.Estudiante; // Interfaz Map, utilizada para Map.of() o HashMap.
-import com.is1.proyecto.models.Materia; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.Persona;
-import com.is1.proyecto.models.Profesor; 
-import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.is1.proyecto.config.DBConfigSingleton;
+import com.is1.proyecto.models.Carrera;
+import com.is1.proyecto.models.Estudiante; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import com.is1.proyecto.models.ExamenFinal;
+import com.is1.proyecto.models.Materia; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import com.is1.proyecto.models.Persona; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
+import com.is1.proyecto.models.Profesor; // Utilidad para hashear y verificar contraseñas de forma segura.
+import com.is1.proyecto.models.User; // Representa un modelo de datos y el nombre de la vista a renderizar.
 
-import spark.ModelAndView; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
-import static spark.Spark.after; //Modelo de ActiveJDBC que representa la tabla 'materia'
-import static spark.Spark.before; //Modelo de ActiveJDBC que representa la tabla 'materia'
-import static spark.Spark.get;
+import spark.ModelAndView; // Motor de plantillas Mustache para Spark.
+import static spark.Spark.after; // Para crear mapas de datos (modelos para las plantillas).
+import static spark.Spark.before; // Interfaz Map, utilizada para Map.of() o HashMap.
+import static spark.Spark.get; // Clase Singleton para la configuración de la base de datos.
 import static spark.Spark.halt;
 import static spark.Spark.port;
-import static spark.Spark.post;
-import spark.template.mustache.MustacheTemplateEngine;
+import static spark.Spark.post; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import spark.template.mustache.MustacheTemplateEngine; // Modelo de ActiveJDBC que representa la tabla 'carrera'.
 /**
  * Clase principal de la aplicación Spark.
  * Configura las rutas, filtros y el inicio del servidor web.
@@ -72,41 +73,43 @@ public class App {
         
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
-        before((req, res) -> {
-            try {
-                // Abre una conexión a la base de datos utilizando las credenciales del singleton.
-                Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
-                System.out.println(req.url());
+        // --- Filtro 'before' para gestionar la conexión a la base de datos ---
+before((req, res) -> {
+    String path = req.pathInfo();
 
-            } catch (Exception e) {
-                // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
-                // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
-                System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
-                halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
-            }
-            String path = req.pathInfo();
-            
-            // Rutas públicas
-            boolean esRutaPublica = path.equals("/") || 
-                                    path.equals("/login") || 
-                                    path.equals("/logout") || 
-                                    path.startsWith("/user/new") || 
-                                    path.startsWith("/user/create");
+    // EVITAR EL ERROR DEL FAVICON: Si el navegador pide el icono, cortamos acá
+    // y no abrimos una conexión duplicada en el mismo hilo.
+    if (path.equals("/favicon.ico")) {
+        halt(404); // Le devolvemos un No Encontrado limpio al navegador
+    }
 
-            // Solicitud de login para rutas privadas
-            if (!esRutaPublica) {
-                Boolean loggedIn = req.session().attribute("loggedIn");
-                
-                // Si la sesión no existe o expiró
-                if (loggedIn == null || !loggedIn) {
-                    // Redirreción a login con mensaje de error
-                    res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
-                    //Mata la ejecución para que no se muestre la pantalla protegida
-                    halt(); 
-                }
-            }
+    try {
+        // Abre una conexión a la base de datos utilizando las credenciales del singleton.
+        Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
+        System.out.println(req.url());
 
-        });
+    } catch (Exception e) {
+        System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
+        halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
+    }
+    
+    // Rutas públicas
+    boolean esRutaPublica = path.equals("/") || 
+                            path.equals("/login") || 
+                            path.equals("/logout") || 
+                            path.startsWith("/user/new") || 
+                            path.startsWith("/user/create");
+
+    // Solicitud de login para rutas privadas
+    if (!esRutaPublica) {
+        Boolean loggedIn = req.session().attribute("loggedIn");
+        
+        if (loggedIn == null || !loggedIn) {
+            res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+            halt(); 
+        }
+    }
+});
 
         // --- Filtro 'after' para cerrar la conexión a la base de datos ---
         // Este filtro se ejecuta después de que cada solicitud HTTP ha sido procesada.
@@ -1010,6 +1013,75 @@ public class App {
             }
             return "";
         
+        });
+        // GET: Muestra la pantalla para que el profesor cargue la nota
+        get("/profesor/cargar-nota", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            model.put("materias", Materia.findAll().toMaps());
+            
+            String sqlEstudiantes = "SELECT e.id, p.nombre, p.apellido, e.cod_estudiante " +
+                                    "FROM estudiante e JOIN person p ON e.dni = p.dni";
+            model.put("estudiantes", Base.findAll(sqlEstudiantes));
+            
+            String error = req.queryParams("error");
+            if (error != null) model.put("errorMessage", error);
+            String msg = req.queryParams("message");
+            if (msg != null) model.put("successMessage", msg);
+
+            return new ModelAndView(model, "profesor/cargar_nota.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Procesa el guardado de la nota y ejecuta las validaciones
+        post("/profesor/cargar-nota", (req, res) -> {
+            String estudianteIdStr = req.queryParams("estudiante_id");
+            String materiaIdStr = req.queryParams("materia_id");
+            String legajoProfesorStr = req.queryParams("nro_legajo"); 
+            String notaStr = req.queryParams("nota");
+            String fecha = req.queryParams("fecha");
+
+            if (estudianteIdStr == null || estudianteIdStr.isEmpty() || 
+                materiaIdStr == null || materiaIdStr.isEmpty() || 
+                legajoProfesorStr == null || legajoProfesorStr.isEmpty() ||
+                notaStr == null || notaStr.isEmpty() || fecha == null || fecha.isEmpty()) {
+                
+                res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Todos los campos son estrictamente obligatorios.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            try {
+                Integer legajoProf = Integer.valueOf(legajoProfesorStr.trim());
+                Profesor prof = Profesor.findFirst("nro_legajo = ?", legajoProf);
+                if (prof == null) {
+                    res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Error de permisos: El legajo de profesor ingresado no es válido.", StandardCharsets.UTF_8));
+                    return "";
+                }
+
+                double notaDouble = Double.parseDouble(notaStr.trim());
+                if (notaDouble < 1 || notaDouble > 10) {
+                    res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("La nota debe ser un valor numérico entre 1 y 10.", StandardCharsets.UTF_8));
+                    return "";
+                }
+
+                ExamenFinal examen = new ExamenFinal();
+                examen.set("estudiante_id", Integer.valueOf(estudianteIdStr));
+                examen.set("materia_id", Integer.valueOf(materiaIdStr));
+                examen.set("profesor_id", prof.get("dni")); //  Corregido para usar la PK real (dni)
+                examen.set("nota", notaDouble);
+                examen.set("fecha", fecha); 
+                examen.saveIt();
+
+                String msgExito = "Nota (" + notaDouble + ") registrada exitosamente.";
+                res.redirect("/profesor/cargar-nota?message=" + URLEncoder.encode(msgExito, StandardCharsets.UTF_8));
+                return "";
+
+            } catch (NumberFormatException e) {
+                res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Formato incorrecto: La nota y el legajo deben ser números válidos.", StandardCharsets.UTF_8));
+                return "";
+            } catch (Exception e) {
+                res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Error interno al procesar el examen: " + e.getMessage(), StandardCharsets.UTF_8));
+                return "";
+            }
         });
     
     } // Fin del método main

@@ -67,3 +67,15 @@ CREATE TABLE estudiante (
     FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE
 );
 
+-- Crea la tabla de asociación para registrar los exámenes finales
+CREATE TABLE examen_final (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    estudiante_id INTEGER NOT NULL,
+    materia_id INTEGER NOT NULL,
+    profesor_id INTEGER NOT NULL,
+    nota REAL NOT NULL,
+    fecha TEXT NOT NULL, -- Almacena la fecha en formato YYYY-MM-DD
+    FOREIGN KEY (estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE,
+    FOREIGN KEY (materia_id) REFERENCES materia(id) ON DELETE CASCADE,
+    FOREIGN KEY (profesor_id) REFERENCES profesor(id) ON DELETE CASCADE
+);

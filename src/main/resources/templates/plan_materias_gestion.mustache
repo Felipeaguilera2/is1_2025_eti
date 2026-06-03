@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Materias del Plan</title>
+</head>
+<body>
+    <h1>Estructura de Materias: {{plan.nombre}} ({{plan.codigo}})</h1>
+    <a href="/carreras">Volver a Carreras</a>
+    <hr>
+
+    {{#error}}<p style="color: red;"><strong>Error:</strong> {{.}}</p>{{/error}}
+    {{#message}}<p style="color: green;">{{.}}</p>{{/message}}
+
+    <h2>Asignar Materia Existente a este Plan</h2>
+    <form action="/plan/materia/add" method="POST">
+        <input type="hidden" name="plan_id" value="{{plan.id}}">
+
+        <label>Seleccionar Materia:</label>
+        <select name="materia_id" required>
+            <option value="">-- Elija una materia --</option>
+            {{#todasMaterias}}
+                <option value="{{id}}">{{nombre}} ({{codigo}})</option>
+            {{/todasMaterias}}
+        </select>
+
+        <label>Año de cursado:</label>
+        <input type="number" name="anio_cursado" min="1" max="6" placeholder="Ej: 3" required>
+
+        <label>Cuatrimestre:</label>
+        <select name="cuatrimestre" required>
+            <option value="1">1º Cuatrimestre</option>
+            <option value="2">2º Cuatrimestre</option>
+        </select>
+
+        <button type="submit">Vincular Materia</button>
+    </form>
+
+    <hr>
+
+    <h2>Materias del Plan de Estudio</h2>
+    <ul>
+        {{#planMaterias}}
+            <li>
+                [{{codigo}}] <strong>{{nombre}}</strong> — Ubicación: {{anio_cursado}}º Año, {{cuatrimestre}}º Cuatrimestre
+            </li>
+        {{/planMaterias}}
+        {{^planMaterias}}
+            <li>Este plan todavía no posee materias asignadas.</li>
+        {{/planMaterias}}
+    </ul>
+</body>
+</html>
