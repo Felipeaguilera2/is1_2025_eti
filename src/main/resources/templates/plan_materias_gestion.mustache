@@ -74,6 +74,73 @@
             </form>
         </div>
 
+        <!-- Formulario para Crear y Vincular Nueva Materia -->
+        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
+            <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center">
+                <span class="w-2 h-4 bg-blue-600 rounded-sm inline-block mr-2"></span> Crear Nueva Materia y Vincularla al Plan
+            </h2>
+            <form action="/plan/materia/create-and-add" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                <input type="hidden" name="plan_id" value="{{plan.id}}">
+                <input type="hidden" name="carrera_id" value="{{carrera_id}}">
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Código</label>
+                    <input type="number" name="codigo_materia" placeholder="Ej: 1024" required 
+                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm bg-white">
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Nombre de la Asignatura</label>
+                    <input type="text" name="nombre" placeholder="Ej: Álgebra" required 
+                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm bg-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Año de cursado</label>
+                    <input type="number" name="anio_cursado" min="1" max="6" placeholder="Ej: 1" required 
+                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm bg-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Cuatrimestre</label>
+                    <select name="cuatrimestre" required 
+                            class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm bg-white">
+                        <option value="1">1º Cuatrimestre</option>
+                        <option value="2">2º Cuatrimestre</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center space-x-3 py-2 md:col-span-2">
+                    <input type="checkbox" id="es_obligatoria_new" name="es_obligatoria" checked
+                        class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="es_obligatoria_new" class="text-gray-700 font-medium text-sm">¿Es obligatoria?</label>
+                </div>
+
+                <div class="md:col-span-5 border-t pt-4">
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Asignar Materias Correlativas</label>
+                    <div class="bg-white border rounded-lg p-3 max-h-36 overflow-y-auto space-y-1">
+                        {{#todasMaterias}}
+                        <label class="flex items-center space-x-3 p-1 hover:bg-gray-50 rounded transition cursor-pointer">
+                            <input type="checkbox" name="correlativas" value="{{id}}" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="text-xs text-gray-700 font-mono">[{{codigo_materia}}]</span>
+                            <span class="text-xs text-gray-600">{{nombre}}</span>
+                        </label>
+                        {{/todasMaterias}}
+                        {{^todasMaterias}}
+                        <p class="text-xs text-gray-400 italic text-center py-1">No hay otras materias registradas para correlativas.</p>
+                        {{/todasMaterias}}
+                    </div>
+                </div>
+
+                <div class="md:col-span-5 flex justify-end pt-2">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg shadow transition duration-200">
+                        + Crear y Vincular Materia
+                    </button>
+                </div>
+            </form>
+        </div>
+
         <!-- Tabla de Materias Asignadas -->
         <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center">
             <span class="w-2 h-4 bg-indigo-600 rounded-sm inline-block mr-2"></span> Materias en este Plan de Estudio
@@ -96,7 +163,11 @@
                         <td class="px-6 py-4 font-medium text-gray-800">{{nombre}}</td>
                         <td class="px-6 py-4">{{anio_cursado}}º Año</td>
                         <td class="px-6 py-4">{{cuatrimestre}}º Cuatrimestre</td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-6 py-4 text-center space-x-2">
+                            <a href="/materias/edit/{{id}}" 
+                               class="inline-flex items-center text-xs bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-semibold px-3 py-1.5 rounded-md border border-yellow-200 transition">
+                                Modificar
+                            </a>
                             <a href="/plan/{{plan_id}}/materia/{{id}}/delete?carrera_id={{carrera_id}}" 
                                onclick="return confirm('¿Estás seguro de quitar esta materia de este plan?')" 
                                class="inline-flex items-center text-xs bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-3 py-1.5 rounded-md border border-red-200 transition">
