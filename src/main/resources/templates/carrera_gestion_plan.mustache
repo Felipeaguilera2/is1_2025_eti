@@ -41,6 +41,15 @@
                         <input type="text" name="nombre" required value="{{#editPlan}}{{nombre}}{{/editPlan}}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
                 </div>
+
+                {{#editPlan}}
+                <div class="flex items-center space-x-3 py-2">
+                    <input type="checkbox" id="vigente" name="vigente" 
+                           {{#vigente_checked}}checked{{/vigente_checked}}
+                           class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    <label for="vigente" class="text-gray-700 font-semibold text-sm">¿Plan Vigente (Activo para inscripciones)?</label>
+                </div>
+                {{/editPlan}}
                 
                 <div class="flex justify-end space-x-3">
                     {{#editPlan}}
@@ -63,6 +72,7 @@
                         <th class="py-3 px-6 text-sm font-semibold text-gray-700">Código</th>
                         <th class="py-3 px-6 text-sm font-semibold text-gray-700">Nombre</th>
                         <th class="py-3 px-6 text-sm font-semibold text-gray-700">Versión</th>
+                        <th class="py-3 px-6 text-sm font-semibold text-gray-700">Estado</th>
                         <th class="py-3 px-6 text-sm font-semibold text-gray-700">Acciones</th>
                     </tr>
                 </thead>
@@ -72,8 +82,17 @@
                         <td class="py-4 px-6 text-sm font-medium text-gray-900">{{codigo}}</td>
                         <td class="py-4 px-6 text-sm text-gray-700">{{nombre}}</td>
                         <td class="py-4 px-6 text-sm text-gray-700">{{version}}</td>
-                        <td class="py-4 px-6 text-sm">
+                        <td class="py-4 px-6 text-sm text-gray-700">
+                            {{#vigente_text}}
+                            <span class="text-green-700 bg-green-100 px-2.5 py-0.5 rounded-full text-xs font-semibold">Vigente</span>
+                            {{/vigente_text}}
+                            {{^vigente_text}}
+                            <span class="text-red-700 bg-red-100 px-2.5 py-0.5 rounded-full text-xs font-semibold">No Vigente</span>
+                            {{/vigente_text}}
+                        </td>
+                        <td class="py-4 px-6 text-sm space-x-3">
                             <a href="/carrera/{{carrera.id}}/gestion-plan?edit_plan_id={{id}}" class="text-indigo-600 hover:text-indigo-900 font-medium">Editar</a>
+                            <a href="/carrera/{{carrera.id}}/planes/{{id}}/materias" class="text-green-600 hover:text-green-900 font-medium">Gestionar Materias</a>
                         </td>
                     </tr>
                     {{/planes}}

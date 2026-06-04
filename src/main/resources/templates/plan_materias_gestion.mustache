@@ -2,52 +2,119 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Materias del Plan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Materias del Plan - {{plan.nombre}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <h1>Estructura de Materias: {{plan.nombre}} ({{plan.codigo}})</h1>
-    <a href="/carreras">Volver a Carreras</a>
-    <hr>
+<body class="bg-gray-100 min-h-screen p-6">
+    <div class="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+        
+        <div class="flex justify-between items-center mb-6 pb-4 border-b">
+            <div>
+                <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Estructura del Plan de Estudio</h1>
+                <p class="text-xs text-gray-500 mt-1">Plan: <span class="font-mono font-semibold">{{plan.nombre}} ({{plan.codigo}})</span></p>
+            </div>
+            <a href="/carrera/{{carrera_id}}/gestion-plan" class="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs font-semibold px-4 py-2 rounded-lg transition">
+                ← Volver a Planes
+            </a>
+        </div>
 
-    {{#error}}<p style="color: red;"><strong>Error:</strong> {{.}}</p>{{/error}}
-    {{#message}}<p style="color: green;">{{.}}</p>{{/message}}
+        <!-- Alertas -->
+        {{#error}}
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-md mb-6 shadow-sm">
+            <p class="text-sm font-medium">{{.}}</p>
+        </div>
+        {{/error}}
+        {{#message}}
+        <div class="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 rounded-md mb-6 shadow-sm">
+            <p class="text-sm font-medium">{{.}}</p>
+        </div>
+        {{/message}}
 
-    <h2>Asignar Materia Existente a este Plan</h2>
-    <form action="/plan/materia/add" method="POST">
-        <input type="hidden" name="plan_id" value="{{plan.id}}">
+        <!-- Formulario para Vincular Materias -->
+        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
+            <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center">
+                <span class="w-2 h-4 bg-green-600 rounded-sm inline-block mr-2"></span> Vincular Materia al Plan
+            </h2>
+            <form action="/plan/materia/add" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <input type="hidden" name="plan_id" value="{{plan.id}}">
+                <input type="hidden" name="carrera_id" value="{{carrera_id}}">
 
-        <label>Seleccionar Materia:</label>
-        <select name="materia_id" required>
-            <option value="">-- Elija una materia --</option>
-            {{#todasMaterias}}
-                <option value="{{id}}">{{nombre}} ({{codigo}})</option>
-            {{/todasMaterias}}
-        </select>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Seleccionar Materia</label>
+                    <select name="materia_id" required 
+                            class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition shadow-sm bg-white">
+                        <option value="">-- Seleccionar Materia --</option>
+                        {{#todasMaterias}}
+                        <option value="{{id}}">[{{codigo_materia}}] {{nombre}}</option>
+                        {{/todasMaterias}}
+                    </select>
+                </div>
 
-        <label>Año de cursado:</label>
-        <input type="number" name="anio_cursado" min="1" max="6" placeholder="Ej: 3" required>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Año de cursado</label>
+                    <input type="number" name="anio_cursado" min="1" max="6" placeholder="Ej: 1" required 
+                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition shadow-sm bg-white">
+                </div>
 
-        <label>Cuatrimestre:</label>
-        <select name="cuatrimestre" required>
-            <option value="1">1º Cuatrimestre</option>
-            <option value="2">2º Cuatrimestre</option>
-        </select>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Cuatrimestre</label>
+                    <select name="cuatrimestre" required 
+                            class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition shadow-sm bg-white">
+                        <option value="1">1º Cuatrimestre</option>
+                        <option value="2">2º Cuatrimestre</option>
+                    </select>
+                </div>
 
-        <button type="submit">Vincular Materia</button>
-    </form>
+                <div class="md:col-span-4 flex justify-end pt-2">
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2.5 rounded-lg shadow transition duration-200">
+                        + Vincular Materia
+                    </button>
+                </div>
+            </form>
+        </div>
 
-    <hr>
-
-    <h2>Materias del Plan de Estudio</h2>
-    <ul>
-        {{#planMaterias}}
-            <li>
-                [{{codigo}}] <strong>{{nombre}}</strong> — Ubicación: {{anio_cursado}}º Año, {{cuatrimestre}}º Cuatrimestre
-            </li>
-        {{/planMaterias}}
-        {{^planMaterias}}
-            <li>Este plan todavía no posee materias asignadas.</li>
-        {{/planMaterias}}
-    </ul>
+        <!-- Tabla de Materias Asignadas -->
+        <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center">
+            <span class="w-2 h-4 bg-indigo-600 rounded-sm inline-block mr-2"></span> Materias en este Plan de Estudio
+        </h2>
+        <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+            <table class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 font-semibold">Código</th>
+                        <th scope="col" class="px-6 py-3 font-semibold">Nombre</th>
+                        <th scope="col" class="px-6 py-3 font-semibold">Año de Cursado</th>
+                        <th scope="col" class="px-6 py-3 font-semibold">Cuatrimestre</th>
+                        <th scope="col" class="px-6 py-3 text-center font-semibold">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    {{#planMaterias}}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4 font-mono font-medium text-gray-900">{{codigo_materia}}</td>
+                        <td class="px-6 py-4 font-medium text-gray-800">{{nombre}}</td>
+                        <td class="px-6 py-4">{{anio_cursado}}º Año</td>
+                        <td class="px-6 py-4">{{cuatrimestre}}º Cuatrimestre</td>
+                        <td class="px-6 py-4 text-center">
+                            <a href="/plan/{{plan_id}}/materia/{{id}}/delete?carrera_id={{carrera_id}}" 
+                               onclick="return confirm('¿Estás seguro de quitar esta materia de este plan?')" 
+                               class="inline-flex items-center text-xs bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-3 py-1.5 rounded-md border border-red-200 transition">
+                                Quitar
+                            </a>
+                        </td>
+                    </tr>
+                    {{/planMaterias}}
+                    {{^planMaterias}}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-gray-400 italic bg-gray-50">
+                            Este plan todavía no posee materias asignadas.
+                        </td>
+                    </tr>
+                    {{/planMaterias}}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </body>
 </html>

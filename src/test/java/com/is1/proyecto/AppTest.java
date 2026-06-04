@@ -434,4 +434,90 @@ public class AppTest {
         assertTrue(com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estudianteId, idSuperior),
             "El estudiante debería poder cursar con la correlativa aprobada (nota 7.5)");
     }
+
+    @Test
+    public void testGestionDePlanDeEstudio() {
+        // 1. Crear Carrera
+        Carrera carrera = new Carrera();
+        carrera.set("codigo", "TEST-INFO");
+        carrera.set("nombre", "Tecnicatura en Informatica");
+        carrera.saveIt();
+
+        // 2. Crear Plan de Estudio (Vigente por defecto)
+        com.is1.proyecto.models.PlanEstudio plan = new com.is1.proyecto.models.PlanEstudio();
+        plan.set("nombre", "Plan 2026");
+        plan.set("codigo", "P26-INFO");
+        plan.set("carrera_id", carrera.getId());
+        plan.set("version", 1);
+        plan.set("vigente", 1);
+        assertTrue(plan.saveIt(), "El plan debería guardarse correctamente");
+
+        // 3. Crear Materia
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 9501);
+        materia.set("nombre", "Introduccion a la Programacion");
+        materia.set("plan_materia", "2026");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // 4. Vincular Materia al Plan en el año 1, cuatrimestre 1
+        com.is1.proyecto.models.PlanMateria pm = new com.is1.proyecto.models.PlanMateria();
+        pm.set("plan_estudio_id", plan.getId());
+        pm.set("materia_id", materia.getId());
+        pm.set("anio_cursado", 1);
+        pm.set("cuatrimestre", 1);
+        assertTrue(pm.saveIt(), "La vinculación del plan y la materia debería ser exitosa");
+
+        // Verificar vinculación en base de datos
+        com.is1.proyecto.models.PlanMateria pmGuardado = com.is1.proyecto.models.PlanMateria.findFirst(
+            "plan_estudio_id = ? AND materia_id = ?", plan.getId(), materia.getId()
+        );
+        assertNotNull(pmGuardado);
+        assertEquals(1, pmGuardado.getInteger("anio_cursado").intValue());
+        assertEquals(1, pmGuardado.getInteger("cuatrimestre").intValue());
+
+        // 5. Desactivar el Plan (Vigente = 0)
+        plan.set("vigente", 0);
+        plan.saveIt();
+
+        com.is1.proyecto.models.PlanEstudio planDesactivado = com.is1.proyecto.models.PlanEstudio.findById(plan.getId());
+        assertEquals(0, planDesactivado.getInteger("vigente").intValue(), "El plan debería estar marcado como no vigente");
+    }
+
+    @Test
+    public void testRestringirEstudiantePlanNoVigente() {
+        // 1. Crear Carrera
+        Carrera carrera = new Carrera();
+        carrera.set("codigo", "TEST-VIG");
+        carrera.set("nombre", "Carrera Test Vigente");
+        carrera.saveIt();
+
+        // 2. Crear Plan de Estudio NO Vigente (vigente = 0)
+        com.is1.proyecto.models.PlanEstudio planNoVigente = new com.is1.proyecto.models.PlanEstudio();
+        planNoVigente.set("nombre", "Plan Obsoleto");
+        planNoVigente.set("codigo", "P-OBS");
+        planNoVigente.set("carrera_id", carrera.getId());
+        planNoVigente.set("version", 1);
+        planNoVigente.set("vigente", 0);
+        planNoVigente.saveIt();
+
+        // 3. Crear Persona
+        Persona persona = new Persona();
+        persona.set("nombre", "Estudiante");
+        persona.set("apellido", "PlanInactivo");
+        persona.set("dni", 55999888);
+        persona.set("correo", "estudiante.inactivo@test.com");
+        persona.saveIt();
+
+        // 4. Intentar matricular estudiante en el plan no vigente
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 55999888);
+        estudiante.set("cod_estudiante", 99221);
+        estudiante.set("carrera_id", carrera.getId());
+        estudiante.set("plan_estudio_id", planNoVigente.getId());
+
+        // Debe fallar la validación y no guardar en base de datos
+        assertFalse(estudiante.save(), "No se debería poder guardar un estudiante matriculado en un plan no vigente");
+        assertTrue(estudiante.errors().containsKey("plan_estudio_id"), "Debería retornar error de validación en plan_estudio_id");
+    }
 }
