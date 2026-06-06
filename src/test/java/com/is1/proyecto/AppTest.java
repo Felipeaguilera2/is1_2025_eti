@@ -19,7 +19,7 @@ import com.is1.proyecto.models.Profesor;
 import com.is1.proyecto.models.User;
 import com.is1.proyecto.models.Cursada;
 import com.is1.proyecto.models.Estudiante;
-
+import com.is1.proyecto.models.DocenteMateria;
 import java.io.InputStream;
 import java.util.Scanner;
 
@@ -236,5 +236,94 @@ public class AppTest {
 
         assertFalse(mismoPlan, "El sistema no debería validar la inscripción si los planes difieren.");
         assertNull(guardada, "No debería crearse un registro de cursada en la DB.");
+    }
+
+    @Test
+    public void testAsignacionDocenteExitosayDuplicada() {
+        Persona p = new Persona();
+        p.set("nombre", "Docente");
+        p.set("apellido", "Prueba");
+        p.set("dni", 33000111);
+        p.set("correo", "docente@prueba.com");
+        p.saveIt();
+
+        Profesor prof = new Profesor();
+        prof.set("dni", 33000111);
+        prof.set("nro_legajo", 7771);
+        prof.saveIt();
+
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 8801);
+        materia.set("nombre", "Calculo I");
+        materia.set("plan_materia", "2020");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // Asignación exitosa
+        DocenteMateria dm = new DocenteMateria();
+        dm.set("profesor_dni", prof.get("dni"));
+        dm.set("materia_id", materia.getId());
+        dm.set("rol", "Jefe de cátedra");
+        dm.set("periodo", "2026-1C");
+        dm.set("activo", 1);
+        assertTrue(dm.saveIt(), "La asignación docente debería guardarse correctamente.");
+
+        // Intentar buscar duplicado (simulando lógica de negocio de ProfesorController)
+        DocenteMateria duplicado = DocenteMateria.findFirst(
+            "profesor_dni = ? AND materia_id = ? AND periodo = ?", 
+            prof.get("dni"), materia.getId(), "2026-1C"
+        );
+        assertNotNull(duplicado, "Se debería detectar la asignación existente.");
+    }
+
+    @Test
+    public void testBajaProfesorConYSinVinculos() {
+        Persona p1 = new Persona();
+        p1.set("nombre", "ProfesorSin");
+        p1.set("apellido", "Vinculo");
+        p1.set("dni", 33000222);
+        p1.set("correo", "profesorsin@prueba.com");
+        p1.saveIt();
+
+        Profesor prof1 = new Profesor();
+        prof1.set("dni", 33000222);
+        prof1.set("nro_legajo", 7772);
+        prof1.saveIt();
+
+        // 1. Verificar sin vínculos: count debe ser 0
+        long count1 = DocenteMateria.count("profesor_dni = ? AND activo = 1", prof1.get("dni"));
+        assertEquals(0, count1, "No debería tener asignaciones activas.");
+
+        // 2. Crear profesor con vínculo
+        Persona p2 = new Persona();
+        p2.set("nombre", "ProfesorCon");
+        p2.set("apellido", "Vinculo");
+        p2.set("dni", 33000333);
+        p2.set("correo", "profesorcon@prueba.com");
+        p2.saveIt();
+
+        Profesor prof2 = new Profesor();
+        prof2.set("dni", 33000333);
+        prof2.set("nro_legajo", 7773);
+        prof2.saveIt();
+
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 8802);
+        materia.set("nombre", "Calculo II");
+        materia.set("plan_materia", "2020");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        DocenteMateria dm = new DocenteMateria();
+        dm.set("profesor_dni", prof2.get("dni"));
+        dm.set("materia_id", materia.getId());
+        dm.set("rol", "Ayudante");
+        dm.set("periodo", "2026-1C");
+        dm.set("activo", 1);
+        dm.saveIt();
+
+        // 3. Verificar con vínculos: count debe ser > 0
+        long count2 = DocenteMateria.count("profesor_dni = ? AND activo = 1", prof2.get("dni"));
+        assertTrue(count2 > 0, "Debería tener al menos una asignación activa.");
     }
 }
