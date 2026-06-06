@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS estudiante;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS profesor; 
 DROP TABLE IF EXISTS person;
+DROP TABLE IF EXISTS planes_estudio;
 DROP TABLE IF EXISTS carrera;
 DROP TABLE IF EXISTS materia;
 DROP TABLE IF EXISTS correlativas;
@@ -44,7 +45,9 @@ CREATE TABLE materia (
     codigo_materia INTEGER NOT NULL UNIQUE,
     nombre TEXT NOT NULL,
     plan_materia TEXT NOT NULL,
-    es_obligatoria INTEGER NOT NULL DEFAULT 1
+    es_obligatoria INTEGER NOT NULL DEFAULT 1,
+    carrera_id INTEGER,
+    FOREIGN KEY (carrera_id) REFERENCES carrera(id) ON DELETE SET NULL
 );
 
 -- Crea la tabla intermedia para las relaciones correlativas (Recursiva)
@@ -62,12 +65,25 @@ CREATE TABLE carrera (
     nombre VARCHAR(100) NOT NULL
 );
 
+CREATE TABLE planes_estudio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    codigo TEXT UNIQUE NOT NULL,
+    carrera_id INTEGER NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (carrera_id) REFERENCES carrera(id) ON DELETE CASCADE
+);
+
 -- Crea la tabla 'estudiante' (entidad hija de person)
 CREATE TABLE estudiante (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dni INTEGER NOT NULL UNIQUE,
     cod_estudiante INTEGER NOT NULL UNIQUE,
-    FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE
+    carrera_id INTEGER,
+    plan_estudio_id INTEGER,
+    FOREIGN KEY (dni) REFERENCES person(dni) ON DELETE CASCADE,
+    FOREIGN KEY (carrera_id) REFERENCES carrera(id) ON DELETE SET NULL,
+    FOREIGN KEY (plan_estudio_id) REFERENCES planes_estudio(id) ON DELETE SET NULL
 );
 
 -- Crea la tabla de asociación para registrar los exámenes finales
@@ -90,6 +106,7 @@ CREATE TABLE cursadas (
     materia_id INTEGER NOT NULL,
     periodo TEXT NOT NULL,
     FOREIGN KEY (estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE,
+
     FOREIGN KEY (materia_id) REFERENCES materias(id) ON DELETE CASCADE,
     UNIQUE(estudiante_id, materia_id, periodo) -- Criterio: Evita inscribirse dos veces a la misma materia en el mismo periodo
 );
