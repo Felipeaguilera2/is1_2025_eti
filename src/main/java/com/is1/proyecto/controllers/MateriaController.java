@@ -39,7 +39,7 @@ public class MateriaController {
     private String handleCreateMateria(Request req, Response res) {
         String codigoStr = req.queryParams("codigo_materia");
         String nombre = req.queryParams("nombre");
-        String plan = req.queryParams("plan_materia");
+        String plan = "-";
         String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
         String obligatoriaParam = req.queryParams("es_obligatoria");
         int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
@@ -128,7 +128,7 @@ public class MateriaController {
                 }
 
                 m.set("nombre", req.queryParams("nombre"));
-                m.set("plan_materia", req.queryParams("plan_materia"));
+                m.set("plan_materia", "-");
                 m.set("es_obligatoria", esObligatoria);
                 m.saveIt();
 

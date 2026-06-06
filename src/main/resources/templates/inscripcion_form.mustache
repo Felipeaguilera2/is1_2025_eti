@@ -23,7 +23,10 @@
         <div class="flex justify-between items-center mb-6 pb-4 border-b">
             <div>
                 <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Inscripción a Materias</h1>
-                <p class="text-sm text-gray-500 mt-1">Estudiante: <span class="font-bold text-gray-700">{{estudiante.nombre}} {{estudiante.apellido}}</span></p>
+                <p class="text-sm text-gray-500 mt-1">
+                    Estudiante: <span class="font-bold text-gray-700">{{estudiante.nombre}} {{estudiante.apellido}}</span>
+                    {{#estudiante.plan_nombre}} | Plan de Estudio: <span class="font-bold text-indigo-600">{{estudiante.plan_nombre}}</span>{{/estudiante.plan_nombre}}
+                </p>
             </div>
             <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Inscripción</span>
         </div>
@@ -148,6 +151,7 @@
                     <tr>
                         <th scope="col" class="px-6 py-3 font-semibold">Materia</th>
                         <th scope="col" class="px-6 py-3 font-semibold">Período</th>
+                        <th scope="col" class="px-6 py-3 font-semibold text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 bg-white">
@@ -155,11 +159,18 @@
                     <tr class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4 font-medium text-gray-800">{{materia_nombre}}</td>
                         <td class="px-6 py-4 font-mono">{{periodo}}</td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="/inscripciones/{{estudiante_id}}/delete/{{id}}" 
+                               onclick="return confirm('¿Está seguro de que desea darse de baja de esta materia?')"
+                               class="text-red-600 hover:text-red-800 font-medium transition">
+                                Dar de baja
+                            </a>
+                        </td>
                     </tr>
                     {{/inscripciones}}
                     {{^inscripciones}}
                     <tr>
-                        <td colspan="2" class="px-6 py-8 text-center text-gray-400 italic bg-gray-50">
+                        <td colspan="3" class="px-6 py-8 text-center text-gray-400 italic bg-gray-50">
                             El estudiante no registra inscripciones en este período todavía.
                         </td>
                     </tr>

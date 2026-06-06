@@ -34,6 +34,28 @@
                        class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm">
             </div>
 
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Carrera</label>
+                <select id="carrera_select" name="carrera_id" 
+                        class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                    <option value="">-- Seleccionar --</option>
+                    {{#carreras}}
+                    <option value="{{id}}" {{#selected}}selected{{/selected}}>{{nombre}}</option>
+                    {{/carreras}}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Plan de Estudio</label>
+                <select id="plan_select" name="plan_estudio_id" 
+                        class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                    <option value="">-- Seleccionar --</option>
+                    {{#planes}}
+                    <option value="{{id}}" data-carrera="{{carrera_id}}" {{#selected}}selected{{/selected}}>{{nombre}} ({{codigo}}){{vigente_text}}</option>
+                    {{/planes}}
+                </select>
+            </div>
+
             <div class="flex items-center justify-end space-x-3 border-t pt-4 mt-6">
                 <a href="/estudiantes" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
                     Cancelar
@@ -45,5 +67,37 @@
         </form>
         {{/estudiante}}
     </div>
+
+    <script>
+        const carreraSelect = document.getElementById('carrera_select');
+        const planSelect = document.getElementById('plan_select');
+        const allPlanOptions = Array.from(planSelect.options);
+
+        function filterPlans() {
+            const carreraId = carreraSelect.value;
+            const currentSelected = planSelect.value;
+            planSelect.innerHTML = '';
+            
+            // Re-add default option
+            planSelect.appendChild(allPlanOptions[0]);
+            
+            allPlanOptions.forEach(opt => {
+                if (opt.value === '') return;
+                const optCarrera = opt.getAttribute('data-carrera');
+                if (!carreraId || optCarrera === carreraId) {
+                    planSelect.appendChild(opt);
+                }
+            });
+            planSelect.value = currentSelected;
+        }
+
+        carreraSelect.addEventListener('change', function() {
+            planSelect.value = '';
+            filterPlans();
+        });
+
+        // Run initially to set the state correctly
+        filterPlans();
+    </script>
 </body>
 </html>

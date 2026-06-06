@@ -6,6 +6,7 @@ import static spark.Spark.post;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.javalite.activejdbc.Base;
@@ -30,9 +31,16 @@ public class EstudianteController {
 
     private ModelAndView listEstudiantes(Request req, Response res) {
         Map<String, Object> model = new HashMap<>();
-        String sql = "SELECT e.id, e.dni, e.cod_estudiante, p.nombre, p.apellido " +
-                     "FROM estudiante e JOIN person p ON e.dni = p.dni";
+        String sql = "SELECT e.id, e.dni, e.cod_estudiante, p.nombre, p.apellido, c.nombre AS carrera_nombre, pe.nombre AS plan_nombre " +
+                     "FROM estudiante e " +
+                     "JOIN person p ON e.dni = p.dni " +
+                     "LEFT JOIN carrera c ON e.carrera_id = c.id " +
+                     "LEFT JOIN planes_estudio pe ON e.plan_estudio_id = pe.id";
         model.put("estudiantes", Base.findAll(sql));
+
+        // Cargar carreras y planes activos para el formulario de alta
+        model.put("carreras", com.is1.proyecto.models.Carrera.findAll().toMaps());
+        model.put("planes", com.is1.proyecto.models.PlanEstudio.where("vigente = 1").toMaps());
 
         String error = req.queryParams("error");
         if (error != null) model.put("errorMessage", error);
@@ -45,9 +53,11 @@ public class EstudianteController {
     private String handleCreateEstudiante(Request req, Response res) {
         String dniStr = req.queryParams("dni");
         String codEstudianteStr = req.queryParams("cod_estudiante");
+        String carreraIdStr = req.queryParams("carrera_id");
+        String planEstudioIdStr = req.queryParams("plan_estudio_id");
 
         if (dniStr == null || dniStr.isEmpty() || codEstudianteStr == null || codEstudianteStr.isEmpty()) {
-            res.redirect("/estudiantes?error=" + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
+            res.redirect("/estudiantes?error=" + URLEncoder.encode("DNI y Código de Estudiante son obligatorios.", StandardCharsets.UTF_8));
             return "";
         }
 
@@ -68,9 +78,27 @@ public class EstudianteController {
                 return "";
             }
 
+            Integer planEstudioId = (planEstudioIdStr != null && !planEstudioIdStr.isEmpty()) ? Integer.parseInt(planEstudioIdStr) : null;
+            Integer carreraId = (carreraIdStr != null && !carreraIdStr.isEmpty()) ? Integer.parseInt(carreraIdStr) : null;
+
+            // Restricción: Validar que el plan sea vigente
+            if (planEstudioId != null) {
+                com.is1.proyecto.models.PlanEstudio plan = com.is1.proyecto.models.PlanEstudio.findById(planEstudioId);
+                if (plan == null) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("El plan de estudio seleccionado no existe.", StandardCharsets.UTF_8));
+                    return "";
+                }
+                if (plan.getInteger("vigente") != 1) {
+                    res.redirect("/estudiantes?error=" + URLEncoder.encode("Restricción: No se puede matricular a un estudiante en un plan de estudio no vigente.", StandardCharsets.UTF_8));
+                    return "";
+                }
+            }
+
             Estudiante est = new Estudiante();
             est.setDni(Integer.parseInt(dniStr));
             est.setCodEstudiante(Integer.parseInt(codEstudianteStr));
+            if (carreraId != null) est.set("carrera_id", carreraId);
+            if (planEstudioId != null) est.set("plan_estudio_id", planEstudioId);
             est.saveIt();
 
             res.redirect("/estudiantes?message=" + URLEncoder.encode("Estudiante dado de alta con éxito.", StandardCharsets.UTF_8));
@@ -94,12 +122,35 @@ public class EstudianteController {
             model.put("nombre", p.getString("nombre"));
             model.put("apellido", p.getString("apellido"));
         }
+
+        // Cargar carreras marcando la seleccionada
+        List<Map<String, Object>> carrerasList = com.is1.proyecto.models.Carrera.findAll().toMaps();
+        for (Map<String, Object> carr : carrerasList) {
+            if (est.get("carrera_id") != null && ((Number) est.get("carrera_id")).intValue() == ((Number) carr.get("id")).intValue()) {
+                carr.put("selected", true);
+            }
+        }
+        model.put("carreras", carrerasList);
+
+        // Cargar todos los planes, agregando texto (No Vigente) si aplica, y marcando el seleccionado
+        List<Map<String, Object>> planesList = com.is1.proyecto.models.PlanEstudio.findAll().toMaps();
+        for (Map<String, Object> plan : planesList) {
+            int vigente = ((Number) plan.get("vigente")).intValue();
+            plan.put("vigente_text", vigente == 1 ? "" : " (No Vigente)");
+            if (est.get("plan_estudio_id") != null && ((Number) est.get("plan_estudio_id")).intValue() == ((Number) plan.get("id")).intValue()) {
+                plan.put("selected", true);
+            }
+        }
+        model.put("planes", planesList);
+
         return new ModelAndView(model, "estudiante_edit.mustache");
     }
 
     private String handleEditEstudiante(Request req, Response res) {
         Estudiante est = Estudiante.findById(req.params(":id"));
         String nuevoCodStr = req.queryParams("cod_estudiante");
+        String carreraIdStr = req.queryParams("carrera_id");
+        String planEstudioIdStr = req.queryParams("plan_estudio_id");
 
         if (est != null && nuevoCodStr != null) {
             try {
@@ -109,7 +160,28 @@ public class EstudianteController {
                     return "";
                 }
 
+                Integer planEstudioId = (planEstudioIdStr != null && !planEstudioIdStr.isEmpty()) ? Integer.parseInt(planEstudioIdStr) : null;
+                Integer carreraId = (carreraIdStr != null && !carreraIdStr.isEmpty()) ? Integer.parseInt(carreraIdStr) : null;
+
+                // Restricción: Si cambió el plan o es nuevo, validar que sea vigente
+                if (planEstudioId != null) {
+                    Object currentPlanId = est.get("plan_estudio_id");
+                    if (currentPlanId == null || ((Number) currentPlanId).intValue() != planEstudioId) {
+                        com.is1.proyecto.models.PlanEstudio plan = com.is1.proyecto.models.PlanEstudio.findById(planEstudioId);
+                        if (plan == null) {
+                            res.redirect("/estudiantes?error=" + URLEncoder.encode("El plan de estudio seleccionado no existe.", StandardCharsets.UTF_8));
+                            return "";
+                        }
+                        if (plan.getInteger("vigente") != 1) {
+                            res.redirect("/estudiantes?error=" + URLEncoder.encode("Restricción: No se puede matricular a un estudiante en un plan de estudio no vigente.", StandardCharsets.UTF_8));
+                            return "";
+                        }
+                    }
+                }
+
                 est.setCodEstudiante(Integer.parseInt(nuevoCodStr));
+                est.set("carrera_id", carreraId);
+                est.set("plan_estudio_id", planEstudioId);
                 est.saveIt();
                 res.redirect("/estudiantes?message=" + URLEncoder.encode("Datos del estudiante modificados correctamente.", StandardCharsets.UTF_8));
             } catch (Exception e) {

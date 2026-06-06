@@ -30,19 +30,42 @@
             <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center">
                 <span class="w-2 h-4 bg-purple-600 rounded-sm inline-block mr-2"></span> Matricular Estudiante (Asignar DNI)
             </h2>
-            <form action="/estudiantes/new" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Número de DNI</label>
-                    <input type="number" name="dni" placeholder="Ej: 45678912" required 
-                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+            <form action="/estudiantes/new" method="POST" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Número de DNI</label>
+                        <input type="number" name="dni" placeholder="Ej: 45678912" required 
+                               class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Código (Legajo)</label>
+                        <input type="number" name="cod_estudiante" placeholder="Ej: 22045" required 
+                               class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Carrera</label>
+                        <select id="carrera_select" name="carrera_id" 
+                                class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                            <option value="">-- Seleccionar --</option>
+                            {{#carreras}}
+                            <option value="{{id}}">{{nombre}}</option>
+                            {{/carreras}}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Plan de Estudio</label>
+                        <select id="plan_select" name="plan_estudio_id" 
+                                class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
+                            <option value="">-- Seleccionar --</option>
+                            {{#planes}}
+                            <option value="{{id}}" data-carrera="{{carrera_id}}">{{nombre}} ({{codigo}})</option>
+                            {{/planes}}
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider">Código de Estudiante (Legajo)</label>
-                    <input type="number" name="cod_estudiante" placeholder="Ej: 22045" required 
-                           class="w-full mt-1 p-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition shadow-sm bg-white">
-                </div>
-                <div>
-                    <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2.5 rounded-lg shadow transition duration-200">
+                
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-6 py-2.5 rounded-lg shadow transition duration-200">
                         + Registrar Estudiante
                     </button>
                 </div>
@@ -59,6 +82,8 @@
                         <th scope="col" class="px-6 py-3 font-semibold">Código Alumno</th>
                         <th scope="col" class="px-6 py-3 font-semibold">DNI</th>
                         <th scope="col" class="px-6 py-3 font-semibold">Nombre Completo</th>
+                        <th scope="col" class="px-6 py-3 font-semibold">Carrera</th>
+                        <th scope="col" class="px-6 py-3 font-semibold">Plan</th>
                         <th scope="col" class="px-6 py-3 text-center font-semibold">Acciones</th>
                     </tr>
                 </thead>
@@ -68,7 +93,9 @@
                         <td class="px-6 py-4 font-mono font-medium text-gray-900">{{cod_estudiante}}</td>
                         <td class="px-6 py-4 font-mono">{{dni}}</td>
                         <td class="px-6 py-4 font-medium text-gray-800">{{nombre}} {{apellido}}</td>
-                        <td class="px-6 py-4 text-center space-x-2">
+                        <td class="px-6 py-4 text-gray-700">{{carrera_nombre}}{{^carrera_nombre}}<span class="text-gray-400 italic">No asignada</span>{{/carrera_nombre}}</td>
+                        <td class="px-6 py-4 text-gray-700">{{plan_nombre}}{{^plan_nombre}}<span class="text-gray-400 italic">No asignado</span>{{/plan_nombre}}</td>
+                        <td class="px-6 py-4 text-center space-x-2 whitespace-nowrap">
                             <a href="/inscripciones/{{id}}" class="inline-flex items-center text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-1.5 rounded-md shadow transition duration-200">
                                 Inscribirse a Materias
                             </a>
@@ -85,7 +112,7 @@
 
                     {{^estudiantes}}
                     <tr>
-                        <td colspan="4" class="px-6 py-10 text-center text-gray-400 italic bg-gray-50">
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-400 italic bg-gray-50">
                             No hay estudiantes matriculados en el sistema actualmente.
                         </td>
                     </tr>
@@ -100,5 +127,27 @@
             </a>
         </div>
     </div>
+
+    <script>
+        const carreraSelect = document.getElementById('carrera_select');
+        const planSelect = document.getElementById('plan_select');
+        const allPlanOptions = Array.from(planSelect.options);
+
+        carreraSelect.addEventListener('change', function() {
+            const carreraId = this.value;
+            planSelect.innerHTML = '';
+            
+            // Re-add default option
+            planSelect.appendChild(allPlanOptions[0]);
+            
+            allPlanOptions.forEach(opt => {
+                if (opt.value === '') return;
+                const optCarrera = opt.getAttribute('data-carrera');
+                if (!carreraId || optCarrera === carreraId) {
+                    planSelect.appendChild(opt);
+                }
+            });
+        });
+    </script>
 </body>
 </html>

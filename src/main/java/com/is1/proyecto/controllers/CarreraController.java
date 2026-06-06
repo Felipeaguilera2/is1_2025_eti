@@ -3,9 +3,13 @@ package com.is1.proyecto.controllers;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.javalite.activejdbc.Base;
 import com.is1.proyecto.models.Carrera;
 
 import spark.ModelAndView;
@@ -26,6 +30,12 @@ public class CarreraController {
         get("/carrera/:id/gestion-plan", this::showGestionPlan, mustache);
         post("/carrera/:id/planes/new", this::handleCreatePlan);
         post("/carrera/:id/planes/edit/:plan_id", this::handleEditPlan);
+
+        // Gestión de Materias vinculadas al Plan de Estudio
+        get("/carrera/:id/planes/:plan_id/materias", this::showPlanMaterias, mustache);
+        post("/plan/materia/add", this::handleAddPlanMateria);
+        post("/plan/materia/create-and-add", this::handleCreateAndAddPlanMateria);
+        get("/plan/:plan_id/materia/:materia_id/delete", this::handleDeletePlanMateria);
     }
 
     private ModelAndView showCreateCarrera(Request req, Response res) {
@@ -67,12 +77,17 @@ public class CarreraController {
         String carreraId = req.params(":id");
         Carrera carrera = Carrera.findById(carreraId);
         if (carrera == null) {
-            res.redirect("/carreras?error=Carrera no encontrada");
+            res.redirect("/carreras?error=" + URLEncoder.encode("Carrera no encontrada", StandardCharsets.UTF_8));
             return null;
         }
         model.put("carrera", carrera.toMap());
-        // Importamos com.is1.proyecto.models.PlanEstudio
-        model.put("planes", com.is1.proyecto.models.PlanEstudio.where("carrera_id = ?", carreraId).toMaps());
+        
+        List<Map<String, Object>> planesList = com.is1.proyecto.models.PlanEstudio.where("carrera_id = ?", carreraId).toMaps();
+        for (Map<String, Object> p : planesList) {
+            int vigente = ((Number) p.get("vigente")).intValue();
+            p.put("vigente_text", vigente == 1);
+        }
+        model.put("planes", planesList);
         return new ModelAndView(model, "carrera_planes.mustache");
     }
 
@@ -81,17 +96,26 @@ public class CarreraController {
         String carreraId = req.params(":id");
         Carrera carrera = Carrera.findById(carreraId);
         if (carrera == null) {
-            res.redirect("/carreras?error=Carrera no encontrada");
+            res.redirect("/carreras?error=" + URLEncoder.encode("Carrera no encontrada", StandardCharsets.UTF_8));
             return null;
         }
         model.put("carrera", carrera.toMap());
-        model.put("planes", com.is1.proyecto.models.PlanEstudio.where("carrera_id = ?", carreraId).toMaps());
+
+        List<Map<String, Object>> planesList = com.is1.proyecto.models.PlanEstudio.where("carrera_id = ?", carreraId).toMaps();
+        for (Map<String, Object> p : planesList) {
+            int vigente = ((Number) p.get("vigente")).intValue();
+            p.put("vigente_text", vigente == 1);
+        }
+        model.put("planes", planesList);
         
         String planId = req.queryParams("edit_plan_id");
         if (planId != null && !planId.isEmpty()) {
             com.is1.proyecto.models.PlanEstudio planToEdit = com.is1.proyecto.models.PlanEstudio.findById(planId);
             if (planToEdit != null) {
-                model.put("editPlan", planToEdit.toMap());
+                Map<String, Object> planMap = planToEdit.toMap();
+                int vigente = ((Number) planMap.get("vigente")).intValue();
+                planMap.put("vigente_checked", vigente == 1);
+                model.put("editPlan", planMap);
             }
         }
         
@@ -110,7 +134,7 @@ public class CarreraController {
 
         try {
             if (nombre == null || nombre.trim().isEmpty() || codigo == null || codigo.trim().isEmpty()) {
-                res.redirect("/carrera/" + carreraId + "/gestion-plan?error=Campos obligatorios vacios");
+                res.redirect("/carrera/" + carreraId + "/gestion-plan?error=" + URLEncoder.encode("Campos obligatorios vacíos", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -119,11 +143,12 @@ public class CarreraController {
             plan.set("codigo", codigo.trim());
             plan.set("carrera_id", Integer.valueOf(carreraId));
             plan.set("version", 1); // Versión inicial
+            plan.set("vigente", 1); // Activo por defecto
             plan.saveIt();
 
-            res.redirect("/carrera/" + carreraId + "/gestion-plan?message=Plan creado con éxito");
+            res.redirect("/carrera/" + carreraId + "/gestion-plan?message=" + URLEncoder.encode("Plan creado con éxito", StandardCharsets.UTF_8));
         } catch (Exception e) {
-            res.redirect("/carrera/" + carreraId + "/gestion-plan?error=Error al crear el plan.");
+            res.redirect("/carrera/" + carreraId + "/gestion-plan?error=" + URLEncoder.encode("Error al crear el plan.", StandardCharsets.UTF_8));
         }
         return "";
     }
@@ -133,11 +158,13 @@ public class CarreraController {
         String planId = req.params(":plan_id");
         String nombre = req.queryParams("nombre");
         String codigo = req.queryParams("codigo");
+        String vigenteParam = req.queryParams("vigente");
+        int vigente = (vigenteParam != null && vigenteParam.equals("on")) ? 1 : 0;
 
         try {
             com.is1.proyecto.models.PlanEstudio plan = com.is1.proyecto.models.PlanEstudio.findById(planId);
             if (plan == null) {
-                res.redirect("/carrera/" + carreraId + "/gestion-plan?error=Plan no encontrado");
+                res.redirect("/carrera/" + carreraId + "/gestion-plan?error=" + URLEncoder.encode("Plan no encontrado", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -147,6 +174,7 @@ public class CarreraController {
             if (codigo != null && !codigo.trim().isEmpty()) {
                 plan.set("codigo", codigo.trim());
             }
+            plan.set("vigente", vigente);
 
             // Lógica de negocio específica: Autoincrementar version
             Integer currentVersion = plan.getInteger("version");
@@ -156,9 +184,163 @@ public class CarreraController {
             plan.set("version", currentVersion + 1);
             plan.saveIt();
 
-            res.redirect("/carrera/" + carreraId + "/gestion-plan?message=Plan actualizado a version " + (currentVersion + 1));
+            res.redirect("/carrera/" + carreraId + "/gestion-plan?message=" + URLEncoder.encode("Plan actualizado a versión " + (currentVersion + 1), StandardCharsets.UTF_8));
         } catch (Exception e) {
-            res.redirect("/carrera/" + carreraId + "/gestion-plan?error=Error al actualizar el plan.");
+            res.redirect("/carrera/" + carreraId + "/gestion-plan?error=" + URLEncoder.encode("Error al actualizar el plan.", StandardCharsets.UTF_8));
+        }
+        return "";
+    }
+
+    private ModelAndView showPlanMaterias(Request req, Response res) {
+        Map<String, Object> model = new HashMap<>();
+        String carreraId = req.params(":id");
+        String planId = req.params(":plan_id");
+
+        com.is1.proyecto.models.PlanEstudio plan = com.is1.proyecto.models.PlanEstudio.findById(planId);
+        if (plan == null) {
+            res.redirect("/carrera/" + carreraId + "/gestion-plan?error=" + URLEncoder.encode("Plan no encontrado", StandardCharsets.UTF_8));
+            return null;
+        }
+
+        model.put("plan", plan.toMap());
+        model.put("carrera_id", carreraId);
+
+        // Materias vinculadas a este plan
+        String sqlPlanMaterias = "SELECT m.id, m.codigo_materia, m.nombre, pm.anio_cursado, pm.cuatrimestre " +
+                                 "FROM plan_materias pm JOIN materia m ON pm.materia_id = m.id " +
+                                 "WHERE pm.plan_estudio_id = ?";
+        model.put("planMaterias", Base.findAll(sqlPlanMaterias, planId));
+
+        // Todas las materias en el sistema (carrera-independientes)
+        model.put("todasMaterias", com.is1.proyecto.models.Materia.findAll().toMaps());
+
+        // Mensajes de feedback
+        String error = req.queryParams("error");
+        if (error != null) model.put("error", error);
+        String msg = req.queryParams("message");
+        if (msg != null) model.put("message", msg);
+
+        return new ModelAndView(model, "plan_materias_gestion.mustache");
+    }
+
+    private String handleAddPlanMateria(Request req, Response res) {
+        String planId = req.queryParams("plan_id");
+        String carreraId = req.queryParams("carrera_id");
+        String materiaId = req.queryParams("materia_id");
+        String anioCursadoStr = req.queryParams("anio_cursado");
+        String cuatrimestreStr = req.queryParams("cuatrimestre");
+
+        try {
+            if (planId == null || materiaId == null || anioCursadoStr == null || cuatrimestreStr == null) {
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Campos incompletos", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            int anio = Integer.parseInt(anioCursadoStr);
+            int cuatrimestre = Integer.parseInt(cuatrimestreStr);
+
+            // Verificar si ya está vinculada
+            com.is1.proyecto.models.PlanMateria existente = com.is1.proyecto.models.PlanMateria.findFirst(
+                "plan_estudio_id = ? AND materia_id = ?", planId, materiaId
+            );
+            if (existente != null) {
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("La materia ya está vinculada a este plan", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            com.is1.proyecto.models.PlanMateria pm = new com.is1.proyecto.models.PlanMateria();
+            pm.set("plan_estudio_id", Integer.parseInt(planId));
+            pm.set("materia_id", Integer.parseInt(materiaId));
+            pm.set("anio_cursado", anio);
+            pm.set("cuatrimestre", cuatrimestre);
+            pm.saveIt();
+
+            res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?message=" + URLEncoder.encode("Materia vinculada con éxito", StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Error al vincular materia", StandardCharsets.UTF_8));
+        }
+        return "";
+    }
+
+    private String handleDeletePlanMateria(Request req, Response res) {
+        String planId = req.params(":plan_id");
+        String materiaId = req.params(":materia_id");
+        String carreraId = req.queryParams("carrera_id");
+
+        try {
+            com.is1.proyecto.models.PlanMateria pm = com.is1.proyecto.models.PlanMateria.findFirst(
+                "plan_estudio_id = ? AND materia_id = ?", planId, materiaId
+            );
+            if (pm != null) {
+                pm.delete();
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?message=" + URLEncoder.encode("Materia desvinculada del plan", StandardCharsets.UTF_8));
+            } else {
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Registro no encontrado", StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Error al desvincular materia", StandardCharsets.UTF_8));
+        }
+        return "";
+    }
+
+    private String handleCreateAndAddPlanMateria(Request req, Response res) {
+        String planId = req.queryParams("plan_id");
+        String carreraId = req.queryParams("carrera_id");
+        String codigoStr = req.queryParams("codigo_materia");
+        String nombre = req.queryParams("nombre");
+        String anioCursadoStr = req.queryParams("anio_cursado");
+        String cuatrimestreStr = req.queryParams("cuatrimestre");
+        String obligatoriaParam = req.queryParams("es_obligatoria");
+        String[] correlativasSeleccionadas = req.queryParamsValues("correlativas");
+        int esObligatoria = (obligatoriaParam != null && obligatoriaParam.equals("on")) ? 1 : 0;
+
+        try {
+            if (planId == null || codigoStr == null || nombre == null || anioCursadoStr == null || cuatrimestreStr == null) {
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Campos incompletos", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            int codigo = Integer.parseInt(codigoStr);
+            int anio = Integer.parseInt(anioCursadoStr);
+            int cuatrimestre = Integer.parseInt(cuatrimestreStr);
+
+            // 1. Verificar si la materia con ese código ya existe
+            com.is1.proyecto.models.Materia m = com.is1.proyecto.models.Materia.findFirst("codigo_materia = ?", codigo);
+            if (m != null) {
+                res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("El código de materia ya existe. Use el formulario de vinculación.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            // 2. Crear y guardar la materia
+            m = new com.is1.proyecto.models.Materia();
+            m.set("codigo_materia", codigo);
+            m.set("nombre", nombre.trim());
+            m.set("plan_materia", "-"); // Default para no nulo
+            m.set("es_obligatoria", esObligatoria);
+            m.set("carrera_id", Integer.parseInt(carreraId)); // Asociar a la carrera
+            m.saveIt();
+
+            // 3. Agregar correlativas
+            if (correlativasSeleccionadas != null) {
+                for (String idCorr : correlativasSeleccionadas) {
+                    m.agregarCorrelativa(Integer.valueOf(idCorr));
+                }
+            }
+
+            // 4. Vincular al plan de estudio
+            com.is1.proyecto.models.PlanMateria pm = new com.is1.proyecto.models.PlanMateria();
+            pm.set("plan_estudio_id", Integer.parseInt(planId));
+            pm.set("materia_id", m.getId());
+            pm.set("anio_cursado", anio);
+            pm.set("cuatrimestre", cuatrimestre);
+            pm.saveIt();
+
+            // Recargar en memoria el grafo de correlatividades
+            com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
+            res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?message=" + URLEncoder.encode("Materia creada y vinculada con éxito", StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            res.redirect("/carrera/" + carreraId + "/planes/" + planId + "/materias?error=" + URLEncoder.encode("Error al crear y vincular materia", StandardCharsets.UTF_8));
         }
         return "";
     }

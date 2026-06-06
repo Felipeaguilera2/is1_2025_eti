@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS estudiante;
 DROP TABLE IF EXISTS examen_final;
 DROP TABLE IF EXISTS cursadas;
 DROP TABLE IF EXISTS docente_materia;
+DROP TABLE IF EXISTS plan_materias;
 
 
 
@@ -72,8 +73,21 @@ CREATE TABLE planes_estudio (
     codigo TEXT UNIQUE NOT NULL,
     carrera_id INTEGER NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
+    vigente INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (carrera_id) REFERENCES carrera(id) ON DELETE CASCADE
 );
+
+
+CREATE TABLE plan_materias (
+    plan_estudio_id INTEGER NOT NULL,
+    materia_id INTEGER NOT NULL,
+    anio_cursado INTEGER NOT NULL,
+    cuatrimestre INTEGER NOT NULL,
+    PRIMARY KEY (plan_estudio_id, materia_id),
+    FOREIGN KEY (plan_estudio_id) REFERENCES planes_estudio(id) ON DELETE CASCADE,
+    FOREIGN KEY (materia_id) REFERENCES materia(id) ON DELETE CASCADE
+);
+
 
 -- Crea la tabla 'estudiante' (entidad hija de person)
 CREATE TABLE estudiante (

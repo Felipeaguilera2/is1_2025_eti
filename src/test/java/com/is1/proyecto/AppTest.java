@@ -446,4 +446,194 @@ public class AppTest {
         assertTrue(com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estudianteId, idSuperior),
             "El estudiante debería poder cursar con la correlativa aprobada (nota 7.5)");
     }
+
+    @Test
+    public void testGestionDePlanDeEstudio() {
+        // 1. Crear Carrera
+        Carrera carrera = new Carrera();
+        carrera.set("codigo", "TEST-INFO");
+        carrera.set("nombre", "Tecnicatura en Informatica");
+        carrera.saveIt();
+
+        // 2. Crear Plan de Estudio (Vigente por defecto)
+        com.is1.proyecto.models.PlanEstudio plan = new com.is1.proyecto.models.PlanEstudio();
+        plan.set("nombre", "Plan 2026");
+        plan.set("codigo", "P26-INFO");
+        plan.set("carrera_id", carrera.getId());
+        plan.set("version", 1);
+        plan.set("vigente", 1);
+        assertTrue(plan.saveIt(), "El plan debería guardarse correctamente");
+
+        // 3. Crear Materia
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 9501);
+        materia.set("nombre", "Introduccion a la Programacion");
+        materia.set("plan_materia", "2026");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // 4. Vincular Materia al Plan en el año 1, cuatrimestre 1
+        com.is1.proyecto.models.PlanMateria pm = new com.is1.proyecto.models.PlanMateria();
+        pm.set("plan_estudio_id", plan.getId());
+        pm.set("materia_id", materia.getId());
+        pm.set("anio_cursado", 1);
+        pm.set("cuatrimestre", 1);
+        assertTrue(pm.saveIt(), "La vinculación del plan y la materia debería ser exitosa");
+
+        // Verificar vinculación en base de datos
+        com.is1.proyecto.models.PlanMateria pmGuardado = com.is1.proyecto.models.PlanMateria.findFirst(
+            "plan_estudio_id = ? AND materia_id = ?", plan.getId(), materia.getId()
+        );
+        assertNotNull(pmGuardado);
+        assertEquals(1, pmGuardado.getInteger("anio_cursado").intValue());
+        assertEquals(1, pmGuardado.getInteger("cuatrimestre").intValue());
+
+        // 5. Desactivar el Plan (Vigente = 0)
+        plan.set("vigente", 0);
+        plan.saveIt();
+
+        com.is1.proyecto.models.PlanEstudio planDesactivado = com.is1.proyecto.models.PlanEstudio.findById(plan.getId());
+        assertEquals(0, planDesactivado.getInteger("vigente").intValue(), "El plan debería estar marcado como no vigente");
+    }
+
+    @Test
+    public void testRestringirEstudiantePlanNoVigente() {
+        // 1. Crear Carrera
+        Carrera carrera = new Carrera();
+        carrera.set("codigo", "TEST-VIG");
+        carrera.set("nombre", "Carrera Test Vigente");
+        carrera.saveIt();
+
+        // 2. Crear Plan de Estudio NO Vigente (vigente = 0)
+        com.is1.proyecto.models.PlanEstudio planNoVigente = new com.is1.proyecto.models.PlanEstudio();
+        planNoVigente.set("nombre", "Plan Obsoleto");
+        planNoVigente.set("codigo", "P-OBS");
+        planNoVigente.set("carrera_id", carrera.getId());
+        planNoVigente.set("version", 1);
+        planNoVigente.set("vigente", 0);
+        planNoVigente.saveIt();
+
+        // 3. Crear Persona
+        Persona persona = new Persona();
+        persona.set("nombre", "Estudiante");
+        persona.set("apellido", "PlanInactivo");
+        persona.set("dni", 55999888);
+        persona.set("correo", "estudiante.inactivo@test.com");
+        persona.saveIt();
+
+        // 4. Intentar matricular estudiante en el plan no vigente
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 55999888);
+        estudiante.set("cod_estudiante", 99221);
+        estudiante.set("carrera_id", carrera.getId());
+        estudiante.set("plan_estudio_id", planNoVigente.getId());
+
+        // Debe fallar la validación y no guardar en base de datos
+        assertFalse(estudiante.save(), "No se debería poder guardar un estudiante matriculado en un plan no vigente");
+        assertTrue(estudiante.errors().containsKey("plan_estudio_id"), "Debería retornar error de validación en plan_estudio_id");
+    }
+
+    @Test
+    public void testInscripcionMateriasPlanRestricciones() {
+        // 1. Crear Carrera
+        Carrera carrera = new Carrera();
+        carrera.set("codigo", "TEST-INS");
+        carrera.set("nombre", "Carrera Test Inscripcion");
+        carrera.saveIt();
+
+        // 2. Crear Plan de Estudio Vigente
+        com.is1.proyecto.models.PlanEstudio plan = new com.is1.proyecto.models.PlanEstudio();
+        plan.set("nombre", "Plan Test");
+        plan.set("codigo", "P-TEST-INS");
+        plan.set("carrera_id", carrera.getId());
+        plan.set("version", 1);
+        plan.set("vigente", 1);
+        plan.saveIt();
+
+        // 3. Crear Materia del Plan
+        Materia materiaPlan = new Materia();
+        materiaPlan.set("codigo_materia", 9801);
+        materiaPlan.set("nombre", "Materia del Plan");
+        materiaPlan.set("plan_materia", "2026");
+        materiaPlan.set("es_obligatoria", 1);
+        materiaPlan.set("carrera_id", carrera.getId());
+        materiaPlan.saveIt();
+
+        // Vincular al plan
+        com.is1.proyecto.models.PlanMateria pm = new com.is1.proyecto.models.PlanMateria();
+        pm.set("plan_estudio_id", plan.getId());
+        pm.set("materia_id", materiaPlan.getId());
+        pm.set("anio_cursado", 1);
+        pm.set("cuatrimestre", 1);
+        pm.saveIt();
+
+        // 4. Crear Materia fuera del Plan
+        Materia materiaFueraPlan = new Materia();
+        materiaFueraPlan.set("codigo_materia", 9802);
+        materiaFueraPlan.set("nombre", "Materia Fuera de Plan");
+        materiaFueraPlan.set("plan_materia", "2026");
+        materiaFueraPlan.set("es_obligatoria", 1);
+        materiaFueraPlan.set("carrera_id", carrera.getId());
+        materiaFueraPlan.saveIt();
+
+        // 5. Crear Persona y Estudiante con Plan
+        Persona persona = new Persona();
+        persona.set("nombre", "Estudiante");
+        persona.set("apellido", "Inscripcion");
+        persona.set("dni", 55888777);
+        persona.set("correo", "estudiante.ins@test.com");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 55888777);
+        estudiante.set("cod_estudiante", 99222);
+        estudiante.set("carrera_id", carrera.getId());
+        estudiante.set("plan_estudio_id", plan.getId());
+        estudiante.saveIt();
+
+        int estudianteId = ((Number) estudiante.getId()).intValue();
+        int matPlanId = ((Number) materiaPlan.getId()).intValue();
+        int matFueraId = ((Number) materiaFueraPlan.getId()).intValue();
+
+        // 6. Test: Inscripción exitosa a materia del plan
+        Cursada c1 = new Cursada();
+        c1.set("estudiante_id", estudianteId);
+        c1.set("materia_id", matPlanId);
+        c1.set("periodo", "2026-1C");
+        assertTrue(c1.saveIt(), "La inscripción a una materia del plan debería guardarse correctamente");
+
+        // 7. Test: Comprobar que la materia está vinculada al plan en DB
+        boolean perteneceAlPlan = !Base.findAll(
+            "SELECT 1 FROM plan_materias WHERE plan_estudio_id = ? AND materia_id = ?",
+            plan.getId(), matPlanId
+        ).isEmpty();
+        assertTrue(perteneceAlPlan, "La materia debe pertenecer al plan");
+
+        boolean perteneceAlPlanFuera = !Base.findAll(
+            "SELECT 1 FROM plan_materias WHERE plan_estudio_id = ? AND materia_id = ?",
+            plan.getId(), matFueraId
+        ).isEmpty();
+        assertFalse(perteneceAlPlanFuera, "La materia fuera de plan no debe pertenecer al plan");
+
+        // 8. Test: Comprobar validación de aprobación de final
+        boolean yaAproboAntes = !Base.findAll(
+            "SELECT id FROM examen_final WHERE estudiante_id = ? AND materia_id = ? AND nota >= 4.0",
+            estudianteId, matPlanId
+        ).isEmpty();
+        assertFalse(yaAproboAntes, "No debería figurar como aprobada inicialmente");
+
+        com.is1.proyecto.models.ExamenFinal ef = new com.is1.proyecto.models.ExamenFinal();
+        ef.set("estudiante_id", estudianteId);
+        ef.set("materia_id", matPlanId);
+        ef.set("profesor_id", 9999);
+        ef.set("nota", 8.0);
+        ef.set("fecha", "2026-06-03");
+        ef.saveIt();
+
+        boolean yaAproboDespues = !Base.findAll(
+            "SELECT id FROM examen_final WHERE estudiante_id = ? AND materia_id = ? AND nota >= 4.0",
+            estudianteId, matPlanId
+        ).isEmpty();
+        assertTrue(yaAproboDespues, "Debería figurar como aprobada después de registrar el examen");
+    }
 }
