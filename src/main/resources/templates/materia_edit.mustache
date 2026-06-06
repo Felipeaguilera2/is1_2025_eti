@@ -14,6 +14,12 @@
             <p class="text-xs text-gray-500 mt-1">Estás editando las propiedades lógicas del registro académico.</p>
         </div>
 
+        {{#errorMessage}}
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-md mb-4 shadow-sm">
+            <p class="text-sm font-medium">{{errorMessage}}</p>
+        </div>
+        {{/errorMessage}}
+
         {{#materia}}
         <form action="/materias/edit/{{id}}" method="POST" class="space-y-5">
             <div>
@@ -52,6 +58,7 @@
                     {{#todasMaterias}}
                     <label class="flex items-center space-x-3 p-1 hover:bg-gray-100 rounded transition cursor-pointer">
                         <input type="checkbox" name="correlativas" value="{{id}}" 
+                               {{#checked}}checked{{/checked}}
                                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         <span class="text-sm text-gray-700 font-medium font-mono">[{{codigo_materia}}]</span>
                         <span class="text-sm text-gray-600">{{nombre}}</span>

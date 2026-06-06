@@ -321,9 +321,129 @@ public class AppTest {
         dm.set("periodo", "2026-1C");
         dm.set("activo", 1);
         dm.saveIt();
-
         // 3. Verificar con vínculos: count debe ser > 0
         long count2 = DocenteMateria.count("profesor_dni = ? AND activo = 1", prof2.get("dni"));
         assertTrue(count2 > 0, "Debería tener al menos una asignación activa.");
+    }
+
+    @Test
+    public void testDetectarCicloCorrelatividades() {
+        // Crear materias
+        Materia m1 = new Materia();
+        m1.set("codigo_materia", 9001);
+        m1.set("nombre", "Materia 1");
+        m1.set("plan_materia", "2024");
+        m1.set("es_obligatoria", 1);
+        m1.saveIt();
+
+        Materia m2 = new Materia();
+        m2.set("codigo_materia", 9002);
+        m2.set("nombre", "Materia 2");
+        m2.set("plan_materia", "2024");
+        m2.set("es_obligatoria", 1);
+        m2.saveIt();
+
+        Materia m3 = new Materia();
+        m3.set("codigo_materia", 9003);
+        m3.set("nombre", "Materia 3");
+        m3.set("plan_materia", "2024");
+        m3.set("es_obligatoria", 1);
+        m3.saveIt();
+
+        int id1 = ((Number) m1.getId()).intValue();
+        int id2 = ((Number) m2.getId()).intValue();
+        int id3 = ((Number) m3.getId()).intValue();
+
+        // Configurar correlatividades iniciales en DB
+        m1.agregarCorrelativa(id2); // Materia 1 requiere Materia 2 (m1 -> m2)
+        m2.agregarCorrelativa(id3); // Materia 2 requiere Materia 3 (m2 -> m3)
+
+        // Inicializar/Recargar el manager
+        com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
+        // 1. Probar agregar m3 -> m1: generaría un ciclo (m1 -> m2 -> m3 -> m1)
+        assertTrue(com.is1.proyecto.CorrelatividadesManager.getInstance().checkCycle(id3, id1),
+            "Debería detectar un ciclo si m3 depende de m1");
+
+        // 2. Probar agregar m3 -> m2: generaría un ciclo (m2 -> m3 -> m2)
+        assertTrue(com.is1.proyecto.CorrelatividadesManager.getInstance().checkCycle(id3, id2),
+            "Debería detectar un ciclo si m3 depende de m2");
+
+        // 3. Probar agregar m1 -> m3: ya existe la transitividad pero no generaría ciclos directos o invertidos nuevos.
+        // Esperamos falso ya que m1 ya depende indirectamente de m3 y agregar una dependencia directa a m3 no hace ciclo.
+        assertFalse(com.is1.proyecto.CorrelatividadesManager.getInstance().checkCycle(id1, id3),
+            "No debería considerarse ciclo agregar una dependencia transitiva existente de m1 a m3");
+    }
+
+    @Test
+    public void testValidarInscripcionCumplePrerrequisitos() {
+        // 1. Crear alumno
+        Persona persona = new Persona();
+        persona.set("nombre", "Juan");
+        persona.set("apellido", "Perez");
+        persona.set("dni", 55444333);
+        persona.set("correo", "juan.perez@test.com");
+        persona.saveIt();
+
+        com.is1.proyecto.models.Estudiante estudiante = new com.is1.proyecto.models.Estudiante();
+        estudiante.set("dni", 55444333);
+        estudiante.set("cod_estudiante", 1122);
+        estudiante.saveIt();
+
+        int estudianteId = ((Number) estudiante.getId()).intValue();
+
+        // 2. Crear materias correlativas (m1 requiere m2)
+        Materia m1 = new Materia();
+        m1.set("codigo_materia", 9101);
+        m1.set("nombre", "Materia Superior");
+        m1.set("plan_materia", "2024");
+        m1.set("es_obligatoria", 1);
+        m1.saveIt();
+
+        Materia m2 = new Materia();
+        m2.set("codigo_materia", 9102);
+        m2.set("nombre", "Materia Base");
+        m2.set("plan_materia", "2024");
+        m2.set("es_obligatoria", 1);
+        m2.saveIt();
+
+        int idSuperior = ((Number) m1.getId()).intValue();
+        int idBase = ((Number) m2.getId()).intValue();
+
+        m1.agregarCorrelativa(idBase);
+
+        // Recargar el manager
+        com.is1.proyecto.CorrelatividadesManager.getInstance().reload();
+
+        // Caso 1: Estudiante no rindió el examen final de Materia Base
+        assertFalse(com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estudianteId, idSuperior),
+            "El estudiante no debería poder cursar sin la correlativa aprobada");
+
+        // Caso 2: Estudiante rindió pero desaprobó (nota < 4)
+        com.is1.proyecto.models.ExamenFinal examenReprobado = new com.is1.proyecto.models.ExamenFinal();
+        examenReprobado.set("estudiante_id", estudianteId);
+        examenReprobado.set("materia_id", idBase);
+        examenReprobado.set("profesor_id", 9999);
+        examenReprobado.set("nota", 2.0);
+        examenReprobado.set("fecha", "2026-06-01");
+        examenReprobado.saveIt();
+
+        assertFalse(com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estudianteId, idSuperior),
+            "El estudiante no debería poder cursar con la correlativa desaprobada (nota 2.0)");
+
+        // Borrar el examen desaprobado para evitar interferencia
+        examenReprobado.delete();
+
+        // Caso 3: Estudiante rindió y aprobó (nota >= 4)
+        com.is1.proyecto.models.ExamenFinal examenAprobado = new com.is1.proyecto.models.ExamenFinal();
+        examenAprobado.set("estudiante_id", estudianteId);
+        examenAprobado.set("materia_id", idBase);
+        examenAprobado.set("profesor_id", 9999);
+        examenAprobado.set("nota", 7.5);
+        examenAprobado.set("fecha", "2026-06-02");
+        examenAprobado.saveIt();
+
+        assertTrue(com.is1.proyecto.CorrelatividadesManager.getInstance().puedeCursar(estudianteId, idSuperior),
+            "El estudiante debería poder cursar con la correlativa aprobada (nota 7.5)");
     }
 }
