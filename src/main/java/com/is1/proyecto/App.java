@@ -11,6 +11,7 @@ import com.is1.proyecto.config.DBConfigSingleton;
 import com.is1.proyecto.controllers.AuthController;
 import com.is1.proyecto.controllers.CarreraController;
 import com.is1.proyecto.controllers.EstudianteController;
+import com.is1.proyecto.controllers.InscripcionController;
 import com.is1.proyecto.controllers.MateriaController;
 import com.is1.proyecto.controllers.PersonaController;
 import com.is1.proyecto.controllers.ProfesorController;
@@ -121,6 +122,6 @@ public class App {
         new MateriaController();
         new EstudianteController();
         new ProfesorController();
-        new com.is1.proyecto.controllers.InscripcionController();
+        new InscripcionController();
     }
 }

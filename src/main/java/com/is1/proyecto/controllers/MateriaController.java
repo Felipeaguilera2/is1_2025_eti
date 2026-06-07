@@ -20,7 +20,7 @@ public class MateriaController {
         MustacheTemplateEngine mustache = new MustacheTemplateEngine();
 
         get("/materias", this::listMaterias, mustache);
-        post("/materias/new", this::handleCreateMateria);
+        //post("/materias/new", this::handleCreateMateria);
         get("/materias/edit/:id", this::showEditMateria, mustache);
         post("/materias/edit/:id", this::handleEditMateria);
         get("/materias/delete/:id", this::handleDeleteMateria);
@@ -36,6 +36,7 @@ public class MateriaController {
         return new ModelAndView(model, "materia_gestion.mustache");
     }
 
+    /*
     private String handleCreateMateria(Request req, Response res) {
         String codigoStr = req.queryParams("codigo_materia");
         String nombre = req.queryParams("nombre");
@@ -73,7 +74,7 @@ public class MateriaController {
         }
         return "";
     }
-
+    */
     private ModelAndView showEditMateria(Request req, Response res) {
         Map<String, Object> model = new HashMap<>();
         Materia m = Materia.findById(req.params(":id"));
