@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 import org.javalite.activejdbc.Base;
+import com.is1.proyecto.models.User;
+import org.mindrot.jbcrypt.BCrypt;
 
 import com.is1.proyecto.config.DBConfigSingleton;
 import com.is1.proyecto.controllers.AuthController;
@@ -46,6 +48,18 @@ public class App {
                 
                 Base.exec(sql);
                 System.out.println(">>> BASE DE DATOS INICIALIZADA CON TABLAS <<<");
+
+                // Bootstrapping: Crear administrador por defecto si no existen usuarios
+                if (User.count() == 0) {
+                    User admin = new User();
+                    admin.set("name", "admin");
+                    admin.set("rol", "admin");
+                    admin.set("persona_dni", 0);
+                    admin.set("password", BCrypt.hashpw("admin123", BCrypt.gensalt()));
+                    admin.saveIt();
+                    System.out.println(">>> USUARIO ADMINISTRADOR DE BOOTSTRAP CREADO <<<");
+                }
+
                 // Inicializar y cargar correlativas en memoria
                 com.is1.proyecto.CorrelatividadesManager.getInstance();
             } else {
@@ -94,6 +108,18 @@ public class App {
                 if (loggedIn == null || !loggedIn) {
                     res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
                     halt(); 
+                }
+            }
+
+            // Control de acceso basado en roles (RBAC)
+            String rolUsuario = req.session().attribute("rol");
+            if (rolUsuario != null) {
+                if ("estudiante".equals(rolUsuario) && !path.startsWith("/rendimiento") && !path.equals("/logout")) {
+                    res.redirect("/rendimiento");
+                    halt();
+                } else if ("profesor".equals(rolUsuario) && !path.startsWith("/notas") && !path.startsWith("/listado") && !path.equals("/logout")) {
+                    res.redirect("/notas");
+                    halt();
                 }
             }
         });
