@@ -1,3 +1,4 @@
+```mermaid
 graph TD
     Client[Navegador Web / Cliente] -->|Peticiones HTTP| App[App.java<br/>Filtros y Enrutamiento Spark]
 
@@ -26,3 +27,4 @@ graph TD
     class App,Controllers,Templates web
     class Models,ActiveJDBC domain
     class DB storage
+``
