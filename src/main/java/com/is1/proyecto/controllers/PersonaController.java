@@ -36,6 +36,11 @@ public class PersonaController {
             model.put("errorMessage", errorMessage);
         }
 
+        String returnTo = req.queryParams("returnTo");
+        if (returnTo != null && !returnTo.isEmpty()) {
+            model.put("returnTo", returnTo);
+        }        
+
         return new ModelAndView(model, "person_form.mustache");
     }
 
@@ -44,12 +49,18 @@ public class PersonaController {
         String apellido = req.queryParams("apellido");
         String dni = req.queryParams("dni");
         String correo = req.queryParams("correo");
+        String returnTo = req.queryParams("returnTo");
 
         if (name == null || name.isEmpty() || apellido == null || apellido.isEmpty() 
             || dni == null || dni.isEmpty() || correo == null || correo.isEmpty()) {
             res.status(400);
             String msg = URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8);
-            res.redirect("/person/new?error=" + msg);
+            
+            String dest = "/person/new?error=" + msg;
+            if (returnTo != null && !returnTo.isEmpty()) {
+                dest += "&returnTo=" + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
+            }
+            res.redirect(dest);
             return "";
         }
 
@@ -59,7 +70,12 @@ public class PersonaController {
         } catch (NumberFormatException e) {
             res.status(400);
             String msg = URLEncoder.encode("El DNI debe ser un número válido.", StandardCharsets.UTF_8);
-            res.redirect("/person/new?error=" + msg);
+            
+            String dest = "/person/new?error=" + msg;
+            if (returnTo != null && !returnTo.isEmpty()) {
+                dest += "&returnTo=" + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
+            }
+            res.redirect(dest);
             return "";
         }
 
@@ -67,14 +83,22 @@ public class PersonaController {
             if (Persona.findFirst("dni = ?", dni) != null) {
                 res.status(409);
                 String msg = URLEncoder.encode("El DNI " + DniFormated(dni) + " ya se encuentra registrado.", StandardCharsets.UTF_8);
-                res.redirect("/person/new?error=" + msg);
+                String dest = "/person/new?error=" + msg;
+                if (returnTo != null && !returnTo.isEmpty()) {
+                    dest += "&returnTo=" + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
+                }
+                res.redirect(dest);
                 return "";
             }
             
             if (Persona.findFirst("correo = ?", correo) != null) {
                 res.status(409);
                 String msg = URLEncoder.encode("El correo electrónico ya se encuentra registrado.", StandardCharsets.UTF_8);
-                res.redirect("/person/new?error=" + msg);
+                String dest = "/person/new?error=" + msg;
+                if (returnTo != null && !returnTo.isEmpty()) {
+                    dest += "&returnTo=" + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
+                }
+                res.redirect(dest);
                 return "";
             }
 
@@ -88,8 +112,13 @@ public class PersonaController {
             res.status(201);
             String mensajeExito = "Persona " + name + " " + apellido + " registrada con éxito.";
             String msgEncoded = URLEncoder.encode(mensajeExito, StandardCharsets.UTF_8);
-            res.redirect("/person/new?message=" + msgEncoded);
-            return ""; 
+            if (returnTo != null && !returnTo.isEmpty()) {
+                String separador = returnTo.contains("?") ? "&" : "?";
+                res.redirect(returnTo + separador + "message=" + msgEncoded);
+            } else {
+                res.redirect("/person/new?message=" + msgEncoded);
+            }
+            return "";
 
         } catch (Exception e) {
             System.err.println("Error al registrar la persona: " + e.getMessage());
