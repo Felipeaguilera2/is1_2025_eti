@@ -76,13 +76,37 @@ public class AuthController {
             req.session(true).attribute("currentUserUsername", username);
             req.session().attribute("userId", ac.getId());
             req.session().attribute("loggedIn", true);
-            req.session().attribute("rol", ac.getString("rol"));
 
-            System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
+            String rolBD = ac.getString("rol");
+            System.out.println("DEBUG: Login exitoso para la cuenta: " + username + " con rol: " + rolBD);
             System.out.println("DEBUG: ID de Sesión: " + req.session().id());
 
-            model.put("username", username);
-            return new ModelAndView(model, "dashboard.mustache");
+            if ("dual".equals(rolBD)) {
+                req.session().attribute("rolTemporal", "dual");
+                res.redirect("/seleccionar-perfil");
+                halt();
+                return null;
+            } else if ("admin".equals(rolBD)) {
+                req.session().attribute("rol", "admin");
+                res.redirect("/dashboard");
+                halt();
+                return null;
+            } else if ("estudiante".equals(rolBD)) {
+                req.session().attribute("rol", "estudiante");
+                res.redirect("/estudiante/dashboard");
+                halt();
+                return null;
+            } else if ("profesor".equals(rolBD)) {
+                req.session().attribute("rol", "profesor");
+                res.redirect("/profesor/dashboard");
+                halt();
+                return null;
+            } else {
+                req.session().attribute("rol", rolBD);
+                res.redirect("/dashboard");
+                halt();
+                return null;
+            }
         } else {
             res.status(401);
             System.out.println("DEBUG: Intento de login fallido para: " + username);
@@ -121,13 +145,14 @@ public class AuthController {
         try {
             String rol = null;
             Estudiante estudiante = Estudiante.findFirst("dni = ?", dni);
-            if (estudiante != null) {
+            Profesor profesor = Profesor.findFirst("dni = ?", dni);
+
+            if (estudiante != null && profesor != null) {
+                rol = "dual";
+            } else if (estudiante != null) {
                 rol = "estudiante";
-            } else {
-                Profesor profesor = Profesor.findFirst("dni = ?", dni);
-                if (profesor != null) {
-                    rol = "profesor";
-                }
+            } else if (profesor != null) {
+                rol = "profesor";
             }
 
             if (rol == null) {
@@ -213,5 +238,22 @@ public class AuthController {
 
         model.put("username", currentUsername);
         return new ModelAndView(model, "dashboard.mustache");
+    }
+
+    public static ModelAndView mostrarSeleccionPerfil(Request req, Response res) {
+        return new ModelAndView(new HashMap<>(), "seleccionar_perfil.mustache");
+    }
+
+    public static Object setPerfil(Request req, Response res) {
+        String tipo = req.params(":tipo");
+        String rolTemporal = req.session().attribute("rolTemporal");
+        if ("dual".equals(rolTemporal)) {
+            req.session().attribute("rol", tipo);
+            req.session().removeAttribute("rolTemporal");
+            res.redirect("/" + tipo + "/dashboard");
+        } else {
+            res.redirect("/");
+        }
+        return null;
     }
 }
