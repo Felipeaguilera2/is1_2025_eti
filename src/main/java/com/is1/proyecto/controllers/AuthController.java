@@ -12,6 +12,8 @@ import java.util.Map;
 import org.mindrot.jbcrypt.BCrypt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.is1.proyecto.models.User;
+import com.is1.proyecto.models.Estudiante;
+import com.is1.proyecto.models.Profesor;
 
 import spark.ModelAndView;
 import spark.Request;
@@ -69,12 +71,12 @@ public class AuthController {
         }
 
         String storedHashedPassword = ac.getString("password");
-
         if (BCrypt.checkpw(plainTextPassword, storedHashedPassword)) {
             res.status(200);
             req.session(true).attribute("currentUserUsername", username);
             req.session().attribute("userId", ac.getId());
             req.session().attribute("loggedIn", true);
+            req.session().attribute("rol", ac.getString("rol"));
 
             System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
             System.out.println("DEBUG: ID de Sesión: " + req.session().id());
@@ -107,30 +109,49 @@ public class AuthController {
     }
 
     private String handleCreateUser(Request req, Response res) {
-        String name = req.queryParams("name");
+        String dni = req.queryParams("dni");
         String password = req.queryParams("password");
 
-        if (name == null || name.isEmpty() || password == null || password.isEmpty()) {
+        if (dni == null || dni.isEmpty() || password == null || password.isEmpty()) {
             res.status(400);
-            res.redirect("/user/create?error=Nombre y contraseña son requeridos.");
+            res.redirect("/user/create?error=" + URLEncoder.encode("DNI y contraseña son requeridos.", StandardCharsets.UTF_8));
             return "";
         }
 
         try {
+            String rol = null;
+            Estudiante estudiante = Estudiante.findFirst("dni = ?", dni);
+            if (estudiante != null) {
+                rol = "estudiante";
+            } else {
+                Profesor profesor = Profesor.findFirst("dni = ?", dni);
+                if (profesor != null) {
+                    rol = "profesor";
+                }
+            }
+
+            if (rol == null) {
+                res.status(400);
+                res.redirect("/user/create?error=" + URLEncoder.encode("Usted no está registrado en el padrón de la institución", StandardCharsets.UTF_8));
+                return "";
+            }
+
             User ac = new User();
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            ac.set("name", name);
+            ac.set("name", dni);
+            ac.set("persona_dni", Integer.parseInt(dni));
+            ac.set("rol", rol);
             ac.set("password", hashedPassword);
             ac.saveIt();
 
             res.status(201);
-            res.redirect("/?message=Cuenta creada exitosamente para " + name + "!");
+            res.redirect("/?message=" + URLEncoder.encode("Cuenta creada exitosamente para " + dni + "!", StandardCharsets.UTF_8));
             return "";
         } catch (Exception e) {
             System.err.println("Error al registrar la cuenta: " + e.getMessage());
             e.printStackTrace();
             res.status(500);
-            res.redirect("/user/create?error=Error interno al crear la cuenta. Intente de nuevo.");
+            res.redirect("/user/create?error=" + URLEncoder.encode("Error interno al crear la cuenta. Intente de nuevo.", StandardCharsets.UTF_8));
             return "";
         }
     }
