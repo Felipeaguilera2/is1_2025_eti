@@ -207,4 +207,9 @@ public class EstudianteController {
         }
         return "";
     }
+
+    public static ModelAndView mostrarDashboard(Request req, Response res) {
+        HashMap<String, Object> model = new HashMap<>();
+        return new ModelAndView(model, "estudiante/dashboard_estudiante.mustache");
+    }
 }

@@ -158,6 +158,8 @@ public class App {
         // --- Registro de Rutas de Selección de Perfil para Perfiles Duales ---
         get("/seleccionar-perfil", AuthController::mostrarSeleccionPerfil, new MustacheTemplateEngine());
         get("/set-perfil/:tipo", AuthController::setPerfil);
+        get("/profesor/dashboard", ProfesorController::mostrarDashboard, new MustacheTemplateEngine());
+        get("/estudiante/dashboard", EstudianteController::mostrarDashboard, new MustacheTemplateEngine());
 
         // --- Inicialización de los Controladores (Registran sus rutas en Spark) ---
         new AuthController();
