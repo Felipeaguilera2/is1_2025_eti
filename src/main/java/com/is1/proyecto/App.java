@@ -22,6 +22,8 @@ import static spark.Spark.after;
 import static spark.Spark.before;
 import static spark.Spark.halt;
 import static spark.Spark.port;
+import static spark.Spark.get;
+import spark.template.mustache.MustacheTemplateEngine;
 
 /**
  * Clase principal de la aplicación Spark.
@@ -84,6 +86,15 @@ public class App {
                 halt(404); // Le devolvemos un No Encontrado limpio al navegador
             }
 
+            // Si hay una conexión colgada de un ciclo anterior, la cerramos antes de abrir una nueva.
+            if (Base.hasConnection()) {
+                try {
+                    Base.close();
+                } catch (Exception e) {
+                    System.err.println("Error al cerrar conexión previa en before filter: " + e.getMessage());
+                }
+            }
+
             try {
                 // Abre una conexión a la base de datos utilizando las credenciales del singleton.
                 Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
@@ -107,18 +118,34 @@ public class App {
                 
                 if (loggedIn == null || !loggedIn) {
                     res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+                    try { Base.close(); } catch (Exception e) {}
                     halt(); 
+                }
+            }
+
+            // Permitir el acceso a las rutas de selección de perfil si es dual
+            String rolTemporal = req.session().attribute("rolTemporal");
+            if ("dual".equals(rolTemporal)) {
+                if (path.equals("/seleccionar-perfil") || path.startsWith("/set-perfil") || path.equals("/logout")) {
+                    // Acceso permitido, omitir chequeos de rol
+                    return;
+                } else {
+                    res.redirect("/seleccionar-perfil");
+                    try { Base.close(); } catch (Exception e) {}
+                    halt();
                 }
             }
 
             // Control de acceso basado en roles (RBAC)
             String rolUsuario = req.session().attribute("rol");
             if (rolUsuario != null) {
-                if ("estudiante".equals(rolUsuario) && !path.startsWith("/rendimiento") && !path.equals("/logout")) {
-                    res.redirect("/rendimiento");
+                if ("estudiante".equals(rolUsuario) && !path.startsWith("/estudiante") && !path.equals("/logout")) {
+                    res.redirect("/estudiante/dashboard");
+                    try { Base.close(); } catch (Exception e) {}
                     halt();
-                } else if ("profesor".equals(rolUsuario) && !path.startsWith("/notas") && !path.startsWith("/listado") && !path.equals("/logout")) {
-                    res.redirect("/notas");
+                } else if ("profesor".equals(rolUsuario) && !path.startsWith("/profesor") && !path.equals("/logout")) {
+                    res.redirect("/profesor/dashboard");
+                    try { Base.close(); } catch (Exception e) {}
                     halt();
                 }
             }
@@ -140,6 +167,12 @@ public class App {
                 System.err.println("Error al cerrar conexión con ActiveJDBC: " + e.getMessage());
             }
         });
+
+        // --- Registro de Rutas de Selección de Perfil para Perfiles Duales ---
+        get("/seleccionar-perfil", AuthController::mostrarSeleccionPerfil, new MustacheTemplateEngine());
+        get("/set-perfil/:tipo", AuthController::setPerfil);
+        get("/profesor/dashboard", ProfesorController::mostrarDashboard, new MustacheTemplateEngine());
+        get("/estudiante/dashboard", EstudianteController::mostrarDashboard, new MustacheTemplateEngine());
 
         // --- Inicialización de los Controladores (Registran sus rutas en Spark) ---
         new AuthController();

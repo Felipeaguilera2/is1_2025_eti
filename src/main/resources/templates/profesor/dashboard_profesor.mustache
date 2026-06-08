@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Docente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-bold">Portal Docente</h1>
+        <a href="/logout" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded">Cerrar Sesión</a>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">Bienvenido/a</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <h3 class="text-lg font-semibold mb-2">Mis Materias y Listados</h3>
+                <p class="text-gray-600 mb-4">Consulta los alumnos inscritos en tus comisiones.</p>
+                <a href="/profesor/listados" class="text-blue-600 hover:underline">Ver listados &rarr;</a>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+                <h3 class="text-lg font-semibold mb-2">Carga de Notas</h3>
+                <p class="text-gray-600 mb-4">Registra los exámenes finales de tus alumnos.</p>
+                <a href="/profesor/cargar-nota" class="text-blue-600 hover:underline">Cargar notas &rarr;</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

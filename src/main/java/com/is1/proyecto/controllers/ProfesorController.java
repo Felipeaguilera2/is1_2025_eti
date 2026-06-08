@@ -42,6 +42,7 @@ public class ProfesorController {
         // Rutas para asignación de docentes a materias
         get("/profesor/asignar", this::showAsignarDocente, mustache);
         post("/profesor/asignar", this::handleAsignarDocente);
+        get("/profesor/listados", this::showListadosAlumnos, mustache);
     }
 
     private ModelAndView showLogin(Request req, Response res) {
@@ -363,6 +364,13 @@ public class ProfesorController {
                 return "";
             }
 
+            // Validar que el profesor esté asignado a la materia de forma activa
+            long asignacionCount = DocenteMateria.count("profesor_dni = ? AND materia_id = ? AND activo = 1", prof.get("dni"), Integer.valueOf(materiaIdStr));
+            if (asignacionCount == 0) {
+                res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("Error de permisos: El profesor no está asignado a esta materia.", StandardCharsets.UTF_8));
+                return "";
+            }
+
             double notaDouble = Double.parseDouble(notaStr.trim());
             if (notaDouble < 1 || notaDouble > 10) {
                 res.redirect("/profesor/cargar-nota?error=" + URLEncoder.encode("La nota debe ser un valor numérico entre 1 y 10.", StandardCharsets.UTF_8));
@@ -463,5 +471,75 @@ public class ProfesorController {
             res.redirect("/profesor/asignar?error=" + URLEncoder.encode("Error interno al registrar la asignación.", StandardCharsets.UTF_8));
         }
         return "";
+    }
+
+    public static ModelAndView mostrarDashboard(Request req, Response res) {
+        HashMap<String, Object> model = new HashMap<>();
+        return new ModelAndView(model, "profesor/dashboard_profesor.mustache");
+    }
+
+    private ModelAndView showListadosAlumnos(Request req, Response res) {
+        Map<String, Object> model = new HashMap<>();
+        String username = req.session().attribute("currentUserUsername");
+        
+        if (username == null) {
+            res.redirect("/");
+            return null;
+        }
+
+        try {
+            // Obtener el profesor
+            Profesor prof = Profesor.findFirst("dni = ?", username);
+            if (prof == null) {
+                res.redirect("/logout");
+                return null;
+            }
+
+            // Listar materias asignadas de forma activa a este profesor
+            String sqlMaterias = "SELECT m.id, m.nombre, m.codigo_materia, dm.periodo " +
+                                 "FROM docente_materia dm " +
+                                 "JOIN materia m ON dm.materia_id = m.id " +
+                                 "WHERE dm.profesor_dni = ? AND dm.activo = 1";
+            java.util.List<Map> materiasList = Base.findAll(sqlMaterias, prof.get("dni"));
+            
+            String selectedMateriaId = req.queryParams("materia_id");
+            if (selectedMateriaId != null && !selectedMateriaId.isEmpty()) {
+                int matId = Integer.parseInt(selectedMateriaId);
+                
+                // Marcar la seleccionada y verificar acceso
+                boolean esAsignado = false;
+                for (Map mat : materiasList) {
+                    if (((Number) mat.get("id")).intValue() == matId) {
+                        mat.put("selected", true);
+                        esAsignado = true;
+                    }
+                }
+                
+                if (esAsignado) {
+                    Materia materia = Materia.findById(matId);
+                    if (materia != null) {
+                        model.put("selectedMateria", materia.toMap());
+                        
+                        // Traer alumnos inscritos
+                        String sqlAlumnos = "SELECT p.nombre, p.apellido, e.dni, e.cod_estudiante, c.periodo " +
+                                            "FROM cursadas c " +
+                                            "JOIN estudiante e ON c.estudiante_id = e.id " +
+                                            "JOIN person p ON e.dni = p.dni " +
+                                            "WHERE c.materia_id = ?";
+                        java.util.List<Map> alumnosList = Base.findAll(sqlAlumnos, matId);
+                        model.put("alumnos", alumnosList);
+                    }
+                } else {
+                    model.put("errorMessage", "Error: No tiene asignada esta materia o no existe.");
+                }
+            }
+            
+            model.put("materias", materiasList);
+            
+        } catch (Exception e) {
+            model.put("errorMessage", "Error al cargar los listados de alumnos: " + e.getMessage());
+        }
+
+        return new ModelAndView(model, "profesor/listado_alumnos.mustache");
     }
 }

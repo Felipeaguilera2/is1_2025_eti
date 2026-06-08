@@ -636,4 +636,67 @@ public class AppTest {
         ).isEmpty();
         assertTrue(yaAproboDespues, "Debería figurar como aprobada después de registrar el examen");
     }
+
+    @Test
+    public void testTieneVinculosAcademicosConInscripciones() {
+        Persona persona = new Persona();
+        persona.set("nombre", "Pedro");
+        persona.set("apellido", "Ramirez");
+        persona.set("dni", 55777666);
+        persona.set("correo", "pedro@test.com");
+        persona.saveIt();
+
+        Estudiante estudiante = new Estudiante();
+        estudiante.set("dni", 55777666);
+        estudiante.set("cod_estudiante", 99223);
+        estudiante.saveIt();
+
+        // 1. Inicialmente no tiene vínculos
+        assertFalse(estudiante.tieneVinculosAcademicos(), "No debería tener vínculos iniciales");
+
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 9805);
+        materia.set("nombre", "Materia Vinculo Test");
+        materia.set("plan_materia", "2026");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // Registrar una cursada
+        Cursada cursada = new Cursada();
+        cursada.set("estudiante_id", estudiante.getId());
+        cursada.set("materia_id", materia.getId());
+        cursada.set("periodo", "2026-1C");
+        cursada.saveIt();
+
+        // 2. Ahora sí debe reportar vínculos activos
+        assertTrue(estudiante.tieneVinculosAcademicos(), "Debería tener vínculos académicos activos por la cursada");
+    }
+
+    @Test
+    public void testAsignacionDocenteValidacionDeCargaNota() {
+        // Registrar docente
+        Persona p = new Persona();
+        p.set("nombre", "Docente");
+        p.set("apellido", "SinAsignar");
+        p.set("dni", 33000999);
+        p.set("correo", "docente.sin@prueba.com");
+        p.saveIt();
+
+        Profesor prof = new Profesor();
+        prof.set("dni", 33000999);
+        prof.set("nro_legajo", 7779);
+        prof.saveIt();
+
+        // Registrar materia
+        Materia materia = new Materia();
+        materia.set("codigo_materia", 8809);
+        materia.set("nombre", "Materia De Carga");
+        materia.set("plan_materia", "2020");
+        materia.set("es_obligatoria", 1);
+        materia.saveIt();
+
+        // Verificar que no está asignado
+        long asignaciones = DocenteMateria.count("profesor_dni = ? AND materia_id = ? AND activo = 1", prof.get("dni"), materia.getId());
+        assertEquals(0, asignaciones, "No debería tener asignaciones para esta materia");
+    }
 }

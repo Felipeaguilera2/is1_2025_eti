@@ -40,14 +40,9 @@ public class Estudiante extends Model {
         set("cod_estudiante", codEstudiante);
     }
 
-    /**
-     * Criterio de Aceptación: Impedir borrado con vínculos académicos activos.
-     * Comprueba si el estudiante tiene inscripciones, cursadas o finales.
-     */
     public boolean tieneVinculosAcademicos() {
-        // Por ahora, como las tablas intermedias de inscripciones se están desarrollando,
-        // dejamos la validación lista. Si no hay registros asociados, devuelve false.
-        // Ejemplo futuro: return Base.firstCell("SELECT count(*) FROM alumno_materia WHERE estudiante_id = ?", getId()) > 0;
-        return false; 
+        long cursadasCount = org.javalite.activejdbc.Base.count("cursadas", "estudiante_id = ?", getId());
+        long examenesCount = org.javalite.activejdbc.Base.count("examen_final", "estudiante_id = ?", getId());
+        return cursadasCount > 0 || examenesCount > 0;
     }
 }
