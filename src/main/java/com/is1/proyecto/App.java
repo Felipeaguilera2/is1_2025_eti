@@ -86,6 +86,15 @@ public class App {
                 halt(404); // Le devolvemos un No Encontrado limpio al navegador
             }
 
+            // Si hay una conexión colgada de un ciclo anterior, la cerramos antes de abrir una nueva.
+            if (Base.hasConnection()) {
+                try {
+                    Base.close();
+                } catch (Exception e) {
+                    System.err.println("Error al cerrar conexión previa en before filter: " + e.getMessage());
+                }
+            }
+
             try {
                 // Abre una conexión a la base de datos utilizando las credenciales del singleton.
                 Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
@@ -109,6 +118,7 @@ public class App {
                 
                 if (loggedIn == null || !loggedIn) {
                     res.redirect("/?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta pantalla.", StandardCharsets.UTF_8));
+                    try { Base.close(); } catch (Exception e) {}
                     halt(); 
                 }
             }
@@ -121,6 +131,7 @@ public class App {
                     return;
                 } else {
                     res.redirect("/seleccionar-perfil");
+                    try { Base.close(); } catch (Exception e) {}
                     halt();
                 }
             }
@@ -130,9 +141,11 @@ public class App {
             if (rolUsuario != null) {
                 if ("estudiante".equals(rolUsuario) && !path.startsWith("/estudiante") && !path.equals("/logout")) {
                     res.redirect("/estudiante/dashboard");
+                    try { Base.close(); } catch (Exception e) {}
                     halt();
                 } else if ("profesor".equals(rolUsuario) && !path.startsWith("/profesor") && !path.equals("/logout")) {
                     res.redirect("/profesor/dashboard");
+                    try { Base.close(); } catch (Exception e) {}
                     halt();
                 }
             }

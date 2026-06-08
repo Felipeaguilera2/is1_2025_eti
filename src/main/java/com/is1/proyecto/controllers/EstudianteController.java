@@ -210,6 +210,56 @@ public class EstudianteController {
 
     public static ModelAndView mostrarDashboard(Request req, Response res) {
         HashMap<String, Object> model = new HashMap<>();
+        String username = req.session().attribute("currentUserUsername");
+        
+        if (username == null) {
+            res.redirect("/");
+            return null;
+        }
+
+        try {
+            // 1. Obtener los datos del estudiante y cruzarlos con Persona y Carrera
+            String sqlEstudiante = "SELECT e.id, e.dni, e.cod_estudiante, p.nombre, p.apellido, " +
+                                   "c.nombre AS carrera_nombre, pe.nombre AS plan_nombre " +
+                                   "FROM estudiante e " +
+                                   "JOIN person p ON e.dni = p.dni " +
+                                   "LEFT JOIN carrera c ON e.carrera_id = c.id " +
+                                   "LEFT JOIN planes_estudio pe ON e.plan_estudio_id = pe.id " +
+                                   "WHERE e.dni = ?";
+            var estudiantesList = Base.findAll(sqlEstudiante, username);
+            if (estudiantesList.isEmpty()) {
+                res.redirect("/logout");
+                return null;
+            }
+            
+            Map<String, Object> estudiante = estudiantesList.get(0);
+            model.putAll(estudiante); // Carga nombre, apellido, dni, cod_estudiante, carrera_nombre, plan_nombre, id
+            
+            Object estudianteId = estudiante.get("id");
+            model.put("estudiante_id", estudianteId);
+
+            // 2. Obtener materias aprobadas (examen_final con nota >= 4.0)
+            String sqlAprobadas = "SELECT m.codigo_materia, m.nombre AS materia_nombre, ef.nota, ef.fecha " +
+                                  "FROM examen_final ef " +
+                                  "JOIN materia m ON ef.materia_id = m.id " +
+                                  "WHERE ef.estudiante_id = ? AND ef.nota >= 4.0 " +
+                                  "ORDER BY ef.fecha DESC";
+            java.util.List<Map> aprobadasList = Base.findAll(sqlAprobadas, estudianteId);
+            model.put("aprobadas", aprobadasList);
+
+            // 3. Obtener inscripciones de cursadas activas
+            String sqlCursadas = "SELECT m.codigo_materia, m.nombre AS materia_nombre, c.periodo " +
+                                 "FROM cursadas c " +
+                                 "JOIN materia m ON c.materia_id = m.id " +
+                                 "WHERE c.estudiante_id = ?";
+            java.util.List<Map> cursadasList = Base.findAll(sqlCursadas, estudianteId);
+            model.put("cursadas", cursadasList);
+
+        } catch (Exception e) {
+            System.err.println("Error al cargar el dashboard del estudiante: " + e.getMessage());
+            e.printStackTrace();
+        }
+
         return new ModelAndView(model, "estudiante/dashboard_estudiante.mustache");
     }
 }
