@@ -237,6 +237,17 @@ public class AuthController {
         }
 
         model.put("username", currentUsername);
+
+        String successMessage = req.queryParams("message");
+        if (successMessage != null && !successMessage.isEmpty()) {
+            model.put("successMessage", successMessage);
+        }
+
+        String errorMessage = req.queryParams("error");
+        if (errorMessage != null && !errorMessage.isEmpty()) {
+            model.put("errorMessage", errorMessage);
+        }
+
         return new ModelAndView(model, "dashboard.mustache");
     }
 
